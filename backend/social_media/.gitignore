@@ -1,0 +1,10 @@
+.env
+*.db
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+uploads/*
+!uploads/avatars/
+!uploads/posts/
+!uploads/messages/

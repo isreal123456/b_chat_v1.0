@@ -1,0 +1,1 @@
+"""Feed assembly business logic."""

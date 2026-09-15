@@ -1,0 +1,1 @@
+"""Friend request business logic."""

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BChat</title>
+<style>
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                 Helvetica, Arial, sans-serif;
+    background: #0b0e14;
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.18), transparent 45%),
+      radial-gradient(circle at 85% 100%, rgba(236, 72, 153, 0.12), transparent 45%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    color: #e6e8ef;
+  }
+
+  /* ---------- App shell ---------- */
+  .app {
+    width: 100%;
+    max-width: 720px;
+    height: min(780px, 100%);
+    background: #12151f;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow:
+      0 30px 60px -20px rgba(0, 0, 0, 0.7),
+      0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-right: auto;
+  }
+
+  .brand .logo {
+    width: 30px;
+    height: 30px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, #6366f1, #a855f7);
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    box-shadow: 0 6px 18px -6px rgba(99, 102, 241, 0.9);
+  }
+
+  /* ---------- Inputs ---------- */
+  input {
+    font: inherit;
+    font-size: 14px;
+    color: #e6e8ef;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 10px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    min-width: 0;
+  }
+
+  input::placeholder { color: #6b7280; }
+
+  input:focus {
+    border-color: #6366f1;
+    background: rgba(99, 102, 241, 0.08);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  }
+
+  input:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* ---------- Buttons ---------- */
+  button {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    border-radius: 10px;
+    padding: 9px 16px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.15s, opacity 0.15s;
+    box-shadow: 0 6px 16px -8px rgba(99, 102, 241, 0.9);
+    white-space: nowrap;
+  }
+
+  button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -8px rgba(99, 102, 241, 1);
+  }
+
+  button:active:not(:disabled) { transform: translateY(0); }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  button.ghost {
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: none;
+    color: #cbd0dd;
+  }
+
+  button.ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+
+  /* ---------- Status pill ---------- */
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b93a7;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 11px;
+    border-radius: 999px;
+    user-select: none;
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #6b7280;
+    transition: background 0.2s, box-shadow 0.2s;
+  }
+
+  .status.online .dot {
+    background: #22c55e;
+    box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.16);
+  }
+  .status.online { color: #86efac; }
+
+  .status.connecting .dot {
+    background: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+    animation: pulse 1s infinite;
+  }
+  .status.connecting { color: #fcd34d; }
+
+  .status.error .dot {
+    background: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.16);
+  }
+  .status.error { color: #fca5a5; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  /* ---------- Messages ---------- */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 8px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+  }
+  .messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  /* Empty state */
+  .empty {
+    margin: auto;
+    text-align: center;
+    color: #5b6376;
+    font-size: 14px;
+    line-height: 1.7;
+    padding: 40px 20px;
+  }
+  .empty .big {
+    font-size: 40px;
+    margin-bottom: 10px;
+    opacity: 0.5;
+  }
+
+  /* System messages */
+  .sys {
+    align-self: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: #7b8397;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 5px 12px;
+    border-radius: 999px;
+    max-width: 90%;
+    text-align: center;
+    animation: fadeIn 0.25s ease;
+  }
+
+  .sys.error {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.2);
+  }
+
+  /* Chat bubbles */
+  .row {
+    display: flex;
+    animation: fadeIn 0.2s ease;
+  }
+
+  .row.out { justify-content: flex-end; }
+  .row.in  { justify-content: flex-start; }
+
+  .bubble {
+    max-width: 72%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.45;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+    position: relative;
+  }
+
+  .bubble .meta {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0.65;
+    margin-bottom: 3px;
+    letter-spacing: 0.02em;
+  }
+
+  .row.in .bubble {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom-left-radius: 5px;
+    color: #e6e8ef;
+  }
+
+  .row.out .bubble {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border-bottom-right-radius: 5px;
+    color: #fff;
+    box-shadow: 0 8px 20px -12px rgba(99, 102, 241, 1);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---------- Composer ---------- */
+  .composer {
+    display: flex;
+    gap: 10px;
+    padding: 14px 20px;
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .composer #receiverId { width: 110px; flex: 0 0 auto; }
+  .composer #message    { flex: 1 1 auto; }
+
+  @media (max-width: 560px) {
+    body { padding: 0; }
+    .app { border-radius: 0; height: 100%; max-width: none; border: none; }
+    .brand span.name { display: none; }
+    .composer #receiverId { width: 84px; }
+    .bubble { max-width: 85%; }
+  }
+</style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- ---------- Top bar ---------- -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">💬</div>
+        <span class="name">BChat</span>
+      </div>
+
+      <input id="userId" type="number" placeholder="Your user ID" />
+      <button id="connectBtn" onclick="connect()">Connect</button>
+
+      <div class="status" id="status">
+        <span class="dot"></span>
+        <span id="statusText">Offline</span>
+      </div>
+    </header>
+
+    <!-- ---------- Messages ---------- -->
+    <main class="messages" id="messages">
+      <div class="empty" id="emptyState">
+        <div class="big">💬</div>
+        Enter your user ID and hit <strong>Connect</strong><br />
+        to start chatting.
+      </div>
+    </main>
+
+    <!-- ---------- Composer ---------- -->
+    <footer class="composer">
+      <input id="receiverId" type="number" placeholder="To…" />
+      <input id="message" placeholder="Type a message…" autocomplete="off" />
+      <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
+    </footer>
+
+  </div>
+
+<script>
+  // ---------- Element refs ----------
+  const $ = (id) => document.getElementById(id);
+
+  const userIdInput    = $("userId");
+  const receiverIdInput = $("receiverId");
+  const messageInput   = $("message");
+  const connectBtn     = $("connectBtn");
+  const sendBtn        = $("sendBtn");
+  const messagesEl     = $("messages");
+  const emptyState     = $("emptyState");
+  const statusEl       = $("status");
+  const statusText     = $("statusText");
+
+  // ---------- State ----------
+  let socket = null;
+  let currentUserId = null;
+
+  // ---------- Helpers ----------
+  function setStatus(state, text) {
+    statusEl.classList.remove("online", "connecting", "error");
+    if (state) statusEl.classList.add(state);
+    statusText.textContent = text;
+  }
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function clearEmptyState() {
+    if (emptyState && emptyState.parentNode) {
+      emptyState.remove();
+    }
+  }
+
+  function timestamp() {
+    return new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  /** System note, centered. */
+  function addSystem(text, isError = false) {
+    clearEmptyState();
+    const el = document.createElement("div");
+    el.className = "sys" + (isError ? " error" : "");
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    scrollToBottom();
+  }
+
+  /** Chat bubble. direction: "in" | "out" */
+  function addBubble(text, { direction = "in", meta = "" } = {}) {
+    clearEmptyState();
+    const row = document.createElement("div");
+    row.className = "row " + direction;
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+
+    if (meta) {
+      const m = document.createElement("span");
+      m.className = "meta";
+      m.textContent = meta;
+      bubble.appendChild(m);
+    }
+
+    bubble.appendChild(document.createTextNode(text));
+    row.appendChild(bubble);
+    messagesEl.appendChild(row);
+    scrollToBottom();
+  }
+
+  // ---------- Connect ----------
+  function connect() {
+    const raw = userIdInput.value.trim();
+
+    if (!raw) {
+      setStatus("error", "Enter an ID");
+      userIdInput.focus();
+      return;
+    }
+
+    const userId = Number(raw);
+    if (!Number.isFinite(userId)) {
+      setStatus("error", "Invalid ID");
+      return;
+    }
+
+    // Tear down any existing socket first.
+    if (socket && socket.readyState <= WebSocket.OPEN) {
+      socket.close();
+    }
+
+    currentUserId = userId;
+    setStatus("connecting", "Connecting…");
+    connectBtn.disabled = true;
+
+    socket = new WebSocket(`ws://127.0.0.1:8000/messages/ws/${userId}`);
+
+    socket.onopen = () => {
+      setStatus("online", `Online · #${userId}`);
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Reconnect";
+      connectBtn.classList.add("ghost");
+      sendBtn.disabled = false;
+      userIdInput.disabled = true;
+      messageInput.focus();
+      addSystem(`Connected as user #${userId}`);
+    };
+
+    socket.onmessage = (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        addBubble(event.data, { direction: "in" });
+        return;
+      }
+
+      addBubble(data.content ?? JSON.stringify(data), {
+        direction: "in",
+        meta: `#${data.sender_id} · ${timestamp()}`,
+      });
+    };
+
+    socket.onclose = () => {
+      setStatus(null, "Offline");
+      sendBtn.disabled = true;
+      connectBtn.disabled = false;
+      connectBtn.textContent = "Connect";
+      connectBtn.classList.remove("ghost");
+      userIdInput.disabled = false;
+      addSystem("Disconnected");
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket error:", error);
+      setStatus("error", "Connection error");
+      sendBtn.disabled = true;
+    };
+  }
+
+  // ---------- Send ----------
+  function sendMessage() {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      addSystem("Not connected — click Connect first.", true);
+      return;
+    }
+
+    const rawReceiver = receiverIdInput.value.trim();
+    const content = messageInput.value.trim();
+
+    if (!rawReceiver) {
+      addSystem("Enter a receiver ID.", true);
+      receiverIdInput.focus();
+      return;
+    }
+
+    const receiverId = Number(rawReceiver);
+    if (!Number.isFinite(receiverId)) {
+      addSystem("Receiver ID must be a number.", true);
+      return;
+    }
+
+    if (!content) {
+      messageInput.focus();
+      return;
+    }
+
+    socket.send(JSON.stringify({
+      receiver_id: receiverId,
+      content: content,
+    }));
+
+    // Echo locally so the sender sees their own message.
+    addBubble(content, {
+      direction: "out",
+      meta: `You → #${receiverId} · ${timestamp()}`,
+    });
+
+    messageInput.value = "";
+    messageInput.focus();
+  }
+
+  // ---------- Keyboard shortcuts ----------
+  messageInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  userIdInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      connect();
+    }
+  });
+
+  // ---------- Cleanup on unload ----------
+  window.addEventListener("beforeunload", () => {
+    if (socket) socket.close();
+  });
+</script>
+</body>
+</html>
