@@ -4,7 +4,7 @@ import os
 from app.dependencies.auth import get_current_user
 from app.database.base import Base
 from app.database.database import engine
-from app.routers import friends, likes, messages, notifications, posts, saves, users, auth, comments
+from app.routers import friends, likes, messages, notifications, posts, saves, users, auth, comments, conversations
 
 from app.core.config import settings
 
@@ -50,6 +50,7 @@ app.include_router(friends.router)
 app.include_router(messages.router)
 app.include_router(notifications.router)
 app.include_router(comments.router)
+app.include_router(conversations.router)
 app.include_router(notifications.websocket_router)
 
 

@@ -4,7 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.message_crypto import decrypt_message, encrypt_message
 from app.database.database import get_db
 from app.dependencies import get_current_user
 from app.models.message import Message
@@ -26,8 +25,8 @@ class ConnectionManager:
     def disconnect(self, user_id: int):
         self.active_connections.pop(user_id, None)
 
-    async def send_message(self, receiver_id: int, message: dict):
-        websocket = self.active_connections.get(receiver_id)
+    async def send_message(self, user_id: int, message: dict):
+        websocket = self.active_connections.get(user_id)
 
         if websocket:
             await websocket.send_json(message)
@@ -44,7 +43,9 @@ async def websocket_endpoint(
 ):
     token = websocket.query_params.get("token")
     current_user = await authenticate_websocket_user(token, db)
-    if current_user is None:
+    if current_user is None or (
+        path_user_id is not None and path_user_id != current_user.id
+    ):
         await websocket.close(code=1008, reason="Invalid or missing token")
         return
 
@@ -63,7 +64,7 @@ async def websocket_endpoint(
             message = Message(
                 sender_id=current_user.id,
                 receiver_id=receiver_id,
-                content=encrypt_message(content),
+                content=content,
                 is_read=False,
             )
 
@@ -72,16 +73,16 @@ async def websocket_endpoint(
             await db.refresh(message)
 
             
-            await manager.send_message(
-                receiver_id,
-                {
-                    "id": message.id,
-                    "sender_id": message.sender_id,
-                    "receiver_id": message.receiver_id,
-                    "content": decrypt_message(message.content),
-                        "created_at": message.created_at.isoformat(),
-                }
-            )
+            payload = {
+                "id": message.id,
+                "sender_id": message.sender_id,
+                "receiver_id": message.receiver_id,
+                "content": message.content,
+                "created_at": message.created_at.isoformat(),
+            }
+            await manager.send_message(receiver_id, payload)
+            if receiver_id != current_user.id:
+                await manager.send_message(current_user.id, payload)
 
 
             

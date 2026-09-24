@@ -4,24 +4,35 @@ import {
   MessageCircle,
   Settings,
   Search,
+  Bell,
+  LogOut,
 } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 function TopNav({
   items = [
     { icon: Home, link: "/" },
     { icon: Users, link: "/explore" },
     { icon: MessageCircle, link: "/messages" },
+    { icon: Bell, link: "/friend-requests" },
     { icon: Settings, link: "/settings" },
   ],
 }) {
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    navigate("/login", { replace: true });
+  };
+
   return (
-    <header className="flex items-center gap-6 px-6 py-4">
+    <header className="app-navbar flex items-center gap-6 px-6 py-4">
       {/* Logo */}
       <div className="flex items-center gap-2 shrink-0">
-        <div className="w-9 h-9 rounded-full bg-yellow-400 flex items-center justify-center font-bold text-neutral-900">
+        <div className="app-navbar__logo w-9 h-9 rounded-xl bg-yellow-400 flex items-center justify-center font-bold text-neutral-900">
           B
         </div>
+        <span className="hidden sm:block text-sm font-bold tracking-tight text-white">bchat</span>
       </div>
 
       {/* Search */}
@@ -57,8 +68,15 @@ function TopNav({
         ))}
       </nav>
 
-      {/* Right spacer */}
-      <div className="w-9 h-9 shrink-0" />
+      <button
+        type="button"
+        onClick={handleLogout}
+        aria-label="Log out"
+        title="Log out"
+        className="p-2 rounded-full shrink-0 text-neutral-400 hover:text-white transition-colors"
+      >
+        <LogOut size={18} />
+      </button>
     </header>
   );
 }

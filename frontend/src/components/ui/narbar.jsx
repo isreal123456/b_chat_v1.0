@@ -12,7 +12,7 @@ function TopNav({ items = [
     { icon: Users, active: false, link: "/explore" },
     { icon: MessageCircle, active: false, link: "/messages" },
     { icon: Settings, active: false, link: "/settings" },
-  ];
+  ],
 }) {
 
   return (

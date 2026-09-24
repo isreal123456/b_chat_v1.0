@@ -7,7 +7,7 @@
   gap: 1rem;
   padding: 2rem 2rem 1.25rem;
   border-bottom: 1px solid var(--line);
-  background: rgba(9, 11, 18, 0.72);
+  background: rgba(13, 13, 18, 0.82);
   backdrop-filter: blur(18px);
 }
 
@@ -82,8 +82,8 @@
 .app-shell {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(220px, 280px);
-  gap: 1.25rem;
-  padding: 1.25rem;
+  gap: 1.5rem;
+  padding: 1.5rem;
 }
 
 .app-shell__main,
@@ -105,7 +105,12 @@
   padding: 1rem;
   background: var(--surface);
   box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  transition: border-color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
 }
+
+.panel:hover { border-color: rgba(216, 255, 85, 0.3); }
 
 .profile-card__header,
 .post-card__header,
@@ -137,8 +142,8 @@
   place-items: center;
   overflow: hidden;
   border-radius: 999px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: #fff;
+  background: linear-gradient(135deg, var(--secondary), var(--primary));
+  color: var(--background);
   font-weight: 700;
 }
 
@@ -151,11 +156,21 @@
 .button {
   padding: 0.7rem 1rem;
   font: inherit;
+  cursor: pointer;
+  font-weight: 650;
+  border-radius: 0.65rem;
+  background: var(--primary);
+  color: #111310;
+  border-color: transparent;
 }
 
 .button--ghost {
   background: transparent;
+  color: var(--muted);
+  border-color: transparent;
 }
+
+.button--ghost:hover { color: var(--text); background: rgba(216, 255, 85, 0.08); }
 
 .verified-badge {
   display: inline-grid;
@@ -163,8 +178,8 @@
   width: 1.2rem;
   height: 1.2rem;
   border-radius: 999px;
-  color: #0f172a;
-  background: linear-gradient(135deg, #f5d0fe, #93c5fd);
+  color: var(--background);
+  background: var(--primary);
 }
 
 .tag {
@@ -176,7 +191,11 @@
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scrollbar-width: none;
 }
+
+.story-row::-webkit-scrollbar { display: none; }
 
 .story-row__item {
   display: grid;
@@ -223,6 +242,7 @@
   display: grid;
   place-items: center;
   padding: 1.5rem;
+  background: radial-gradient(circle at 80% 10%, rgba(114, 214, 201, 0.12), transparent 28rem);
 }
 
 .auth-card {
@@ -237,4 +257,12 @@
   .app-shell {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 700px) {
+  .page-frame { padding: 1rem; }
+  .app-shell { padding: 1rem; gap: 1rem; }
+  .top-nav { padding: 1.25rem 1rem 1rem; }
+  .top-nav h1, .page-frame h1 { font-size: clamp(1.8rem, 10vw, 2.8rem); }
+  .composer { flex-direction: column; }
 }

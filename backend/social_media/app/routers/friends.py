@@ -15,6 +15,18 @@ router = APIRouter(
 )
 
 
+def serialize_request(friend_request: FriendRequest, user: User) -> dict:
+    return {
+        "id": friend_request.id,
+        "status": friend_request.status,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "name": user.username,
+        },
+    }
+
+
 
 @router.post("/requests/{user_id}", status_code=status.HTTP_201_CREATED)
 async def send_friend_request(
@@ -107,16 +119,18 @@ async def get_received_requests(
 ):
 
     result = await db.execute(
-        select(FriendRequest)
+        select(FriendRequest, User)
+        .join(User, User.id == FriendRequest.sender_id)
         .where(
             FriendRequest.receiver_id == current_user.id,
             FriendRequest.status == "pending"
         )
     )
 
-    requests = result.scalars().all()
-
-    return requests
+    return [
+        serialize_request(friend_request, user)
+        for friend_request, user in result.all()
+    ]
 
 
 
@@ -127,16 +141,18 @@ async def get_sent_requests(
 ):
 
     result = await db.execute(
-        select(FriendRequest)
+        select(FriendRequest, User)
+        .join(User, User.id == FriendRequest.receiver_id)
         .where(
             FriendRequest.sender_id == current_user.id,
             FriendRequest.status == "pending"
         )
     )
 
-    requests = result.scalars().all()
-
-    return requests
+    return [
+        serialize_request(friend_request, user)
+        for friend_request, user in result.all()
+    ]
 
 
 
@@ -304,7 +320,15 @@ async def get_my_friends(
 
     friends = result.scalars().all()
 
-    return friends
+    return [
+        {
+            "id": friend.id,
+            "username": friend.username,
+            "email": friend.email,
+            "name": friend.username,
+        }
+        for friend in friends
+    ]
 
 
 
@@ -359,7 +383,15 @@ async def get_user_friends(
 
     friends = result.scalars().all()
 
-    return friends
+    return [
+        {
+            "id": friend.id,
+            "username": friend.username,
+            "email": friend.email,
+            "name": friend.username,
+        }
+        for friend in friends
+    ]
 
 
 

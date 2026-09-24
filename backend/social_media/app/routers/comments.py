@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.database import get_db
 from app.models.comment import Comment
+from app.models.post import Post
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.models.user import User
 from app.dependencies import get_current_user
@@ -16,6 +17,9 @@ async def create_comment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if await db.get(Post, comment_data.post_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+
     comment = Comment(
         content=comment_data.content,
         user_id=current_user.id,
@@ -25,16 +29,25 @@ async def create_comment(
     await db.commit()
     await db.refresh(comment)
 
-    return CommentResponse.from_orm(comment)
+    return {
+        "id": comment.id,
+        "post_id": comment.post_id,
+        "content": comment.content,
+        "user_id": comment.user_id,
+        "author": current_user.username,
+    }
 
 
 @router.get("/{comment_id}", response_model=CommentResponse)
 async def get_comment(
     comment_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Comment).where(Comment.id == comment_id)
+        select(Comment, User.username)
+        .join(User, User.id == Comment.user_id)
+        .where(Comment.id == comment_id)
     )
     comment = result.scalar_one_or_none()
 
@@ -44,7 +57,14 @@ async def get_comment(
             detail="Comment not found"
         )
 
-    return CommentResponse.from_orm(comment)
+    comment, author = result.one()
+    return {
+        "id": comment.id,
+        "post_id": comment.post_id,
+        "content": comment.content,
+        "user_id": comment.user_id,
+        "author": author,
+    }
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_comment(
@@ -69,11 +89,24 @@ async def delete_comment(
 @router.get("/posts/{post_id}/comments", response_model=list[CommentResponse])
 async def get_comments_for_post(
     post_id: int,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Comment).where(Comment.post_id == post_id)
+        select(Comment, User.username)
+        .join(User, User.id == Comment.user_id)
+        .where(Comment.post_id == post_id)
+        .order_by(Comment.id)
     )
-    comments = result.scalars().all()
+    comments = result.all()
 
-    return [CommentResponse.from_orm(comment) for comment in comments]
+    return [
+        {
+            "id": comment.id,
+            "post_id": comment.post_id,
+            "content": comment.content,
+            "user_id": comment.user_id,
+            "author": author,
+        }
+        for comment, author in comments
+    ]

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.models.like import Like
+from app.models.post import Post
 from app.database.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, status
@@ -15,6 +16,9 @@ async def like_post(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    if await db.get(Post, post_id) is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+
     # Check if the user has already liked the post
     result = await db.execute(
         select(Like).where(

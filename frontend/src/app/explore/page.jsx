@@ -1,11 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  Home,
-  Users,
-  MessageCircle,
-  Settings,
   Search,
   UserPlus,
   UserCheck,
@@ -13,28 +9,13 @@ import {
   X,
 } from "lucide-react";
 import TopNav from "../../components/ui/navbar";
-// ---- Mock data (swap for real API calls later) ----
-
-const friends = [
-  { id: 1, name: "George Jose", username: "george", avatar: "https://i.pravatar.cc/150?img=13", mutual: 12 },
-  { id: 2, name: "Michel", username: "michel", avatar: "https://i.pravatar.cc/150?img=20", mutual: 8 },
-  { id: 3, name: "Cristano", username: "cristano", avatar: "https://i.pravatar.cc/150?img=21", mutual: 24 },
-  { id: 4, name: "Brahim diaz", username: "brahim", avatar: "https://i.pravatar.cc/150?img=22", mutual: 5 },
-  { id: 5, name: "John wick", username: "johnwick", avatar: "https://i.pravatar.cc/150?img=23", mutual: 17 },
-  { id: 6, name: "Chris", username: "chris", avatar: "https://i.pravatar.cc/150?img=17", mutual: 3 },
-];
-
-const suggestions = [
-  { id: 7, name: "Simon pk", username: "simonpk", avatar: "https://i.pravatar.cc/150?img=12", mutual: 6 },
-  { id: 8, name: "Jhon", username: "jhon", avatar: "https://i.pravatar.cc/150?img=13", mutual: 2 },
-  { id: 9, name: "Rishal", username: "rishal", avatar: "https://i.pravatar.cc/150?img=14", mutual: 9 },
-  { id: 10, name: "Fedrick", username: "fedrick", avatar: "https://i.pravatar.cc/150?img=15", mutual: 4 },
-];
+import { useNavigate } from "react-router-dom";
+import { api, fetchFriends, searchUsers } from "../../lib/api";
 
 // ---- Small building blocks ----
 
 
-function PersonCard({ person, variant, onAction, onDismiss }) {
+function PersonCard({ person, variant, onAction, onDismiss, onMessage }) {
   return (
     <div className="bg-neutral-800 border border-neutral-700 rounded-2xl p-5 flex flex-col items-center text-center relative">
       {variant === "suggestion" && (
@@ -47,7 +28,7 @@ function PersonCard({ person, variant, onAction, onDismiss }) {
       )}
 
       <img
-        src={person.avatar}
+        src={person.avatar || `https://i.pravatar.cc/150?u=${person.id}`}
         alt={person.name}
         className="w-16 h-16 rounded-2xl object-cover mb-3"
       />
@@ -62,7 +43,12 @@ function PersonCard({ person, variant, onAction, onDismiss }) {
               <UserCheck size={14} />
               Friends
             </button>
-            <button className="p-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors">
+            <button
+              type="button"
+              onClick={() => onMessage(person.id)}
+              aria-label={`Message ${person.name}`}
+              className="p-2 bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg transition-colors"
+            >
               <MessageSquare size={14} />
             </button>
           </>
@@ -83,21 +69,38 @@ function PersonCard({ person, variant, onAction, onDismiss }) {
 // ---- Page ----
 
 export default function FriendsPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [suggestionList, setSuggestionList] = useState(suggestions);
-  const [added, setAdded] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [suggestionList, setSuggestionList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    Promise.all([fetchFriends(), searchUsers()]).then(([friendData, userData]) => {
+      const friendIds = new Set(friendData.map((friend) => friend.id));
+      setFriends(friendData.map((friend) => ({ ...friend, mutual: 0 })));
+      setSuggestionList(userData.filter((user) => !friendIds.has(user.id)).map((user) => ({ ...user, mutual: 0 })));
+    }).catch(() => {
+      setFriends([]);
+      setSuggestionList([]);
+      setError("Could not load people. Check that the API is running.");
+    }).finally(() => setLoading(false));
+  }, []);
 
   const filteredFriends = friends.filter((f) =>
     f.name.toLowerCase().includes(query.toLowerCase())
   );
 
   const handleAdd = (id) => {
-    setAdded([...added, id]);
-    setSuggestionList(suggestionList.filter((s) => s.id !== id));
+    setError("");
+    api(`/friends/requests/${id}`, { method: "POST" })
+      .then(() => setSuggestionList((current) => current.filter((s) => s.id !== id)))
+      .catch((requestError) => setError(requestError.message || "Could not send friend request."));
   };
 
   const handleDismiss = (id) => {
-    setSuggestionList(suggestionList.filter((s) => s.id !== id));
+    setSuggestionList((current) => current.filter((s) => s.id !== id));
   };
 
   return (
@@ -123,6 +126,9 @@ export default function FriendsPage() {
           </div>
         </div>
 
+        {error && <p role="alert" className="rounded-lg border border-red-900/60 bg-red-950/30 p-3 text-sm text-red-300">{error}</p>}
+        {loading && <p className="text-sm text-neutral-500">Loading people...</p>}
+
         {/* Suggestions */}
         {suggestionList.length > 0 && (
           <section>
@@ -135,6 +141,7 @@ export default function FriendsPage() {
                   variant="suggestion"
                   onAction={handleAdd}
                   onDismiss={handleDismiss}
+                  onMessage={(id) => navigate(`/messages?user=${id}`)}
                 />
               ))}
             </div>

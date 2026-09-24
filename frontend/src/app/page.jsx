@@ -5,40 +5,38 @@ import StoryRow from "../components/home/StoryRow";
 import PostComposer from "../components/home/PostComposer";
 import PostCard from "../components/home/PostCard";
 import ActivityCard from "../components/home/ActivityCard";
-
-const stories = [
-  { id: 1, name: "Simon pk", avatar: "https://i.pravatar.cc/100?img=12" },
-  { id: 2, name: "Jhon", avatar: "https://i.pravatar.cc/100?img=13" },
-  { id: 3, name: "Rishal", avatar: "https://i.pravatar.cc/100?img=14" },
-  { id: 4, name: "Fedrick", avatar: "https://i.pravatar.cc/100?img=15" },
-  { id: 5, name: "David", avatar: "https://i.pravatar.cc/100?img=16" },
-  { id: 6, name: "Chris", avatar: "https://i.pravatar.cc/100?img=17" },
-];
-
-const posts = [
-  {
-    id: 1,
-    author: "George Jose",
-    username: "george",
-    verified: true,
-    avatar: "https://i.pravatar.cc/100?img=13",
-    time: "1 hour ago",
-    text: "Lorem ipsum dolor sit amet consectetur. Porttitor.",
-    image: "https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=900&q=80",
-  },
-];
-
-const activity = [
-  { id: 1, name: "George Jose", action: "Followed on you", time: "3 min ago", avatar: "https://i.pravatar.cc/100?img=13" },
-  { id: 2, name: "Michel", action: "Followed on you", time: "3 min ago", avatar: "https://i.pravatar.cc/100?img=20" },
-  { id: 3, name: "Cristano", action: "Followed on you", time: "3 min ago", avatar: "https://i.pravatar.cc/100?img=21" },
-  { id: 4, name: "Brahim diaz", action: "Followed on you", time: "3 min ago", avatar: "https://i.pravatar.cc/100?img=22" },
-  { id: 5, name: "John wick", action: "Followed on you", time: "3 min ago", avatar: "https://i.pravatar.cc/100?img=23" },
-];
+import { usePosts } from "../hooks/usePosts";
+import { useEffect, useState } from "react";
+import { api, fetchFriends } from "../lib/api";
 
 const skills = ["UX Designer", "Front end and Back End developer", "JS coder", "UX Designer", "UX Designer"];
 
 export default function HomePage() {
+  const { posts, loading, error, addPost } = usePosts();
+  const [activity, setActivity] = useState([]);
+  const [stories, setStories] = useState([]);
+
+  useEffect(() => {
+    Promise.all([api("/friends/requests/received"), fetchFriends()])
+      .then(([requests, friends]) => {
+        setActivity(requests.map((request) => ({
+        id: request.id,
+        name: request.user.name,
+        action: "sent you a friend request",
+        })));
+        setStories(friends.map((friend) => ({
+          id: friend.id,
+          name: friend.name || friend.username,
+          avatar: `https://i.pravatar.cc/100?u=${friend.id}`,
+        })));
+      })
+      .catch(() => setActivity([]));
+  }, []);
+
+  const removeActivity = (requestId) => {
+    setActivity((current) => current.filter((item) => item.id !== requestId));
+  };
+
   return (
     <div className="min-h-screen bg-neutral-900">
       <TopNav />
@@ -51,16 +49,33 @@ export default function HomePage() {
 
         <main className="space-y-6">
           <StoryRow stories={stories} />
-          <PostComposer />
+          <PostComposer onPostCreated={addPost} />
           <div className="space-y-6">
-            {posts.map((post) => (
+            {loading && (
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-850 p-6 text-sm text-neutral-400 animate-pulse">
+                Loading your feed...
+              </div>
+            )}
+            {error && (
+              <div className="rounded-2xl border border-red-900/60 bg-red-950/30 p-6">
+                <p className="text-sm font-semibold text-red-200">We could not load your feed.</p>
+                <p className="mt-1 text-sm text-red-300/70">Check that you are signed in and the API is running.</p>
+              </div>
+            )}
+            {!loading && !error && posts.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-neutral-700 bg-neutral-800/50 p-8 text-center">
+                <p className="text-white font-semibold">Your feed is quiet</p>
+                <p className="mt-1 text-sm text-neutral-400">Share something or follow people to get the conversation started.</p>
+              </div>
+            )}
+            {!loading && !error && posts.map((post) => (
               <PostCard key={post.id} post={post} />
             ))}
           </div>
         </main>
 
         <aside>
-          <ActivityCard activity={activity} />
+          <ActivityCard activity={activity} onRequestHandled={removeActivity} />
         </aside>
       </div>
     </div>

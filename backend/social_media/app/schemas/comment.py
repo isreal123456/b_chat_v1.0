@@ -1,12 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CommentCreate(BaseModel):
-    content: str
-
-
-class CommentRead(CommentCreate):
-    id: int
     post_id: int
-    author_id: int
-    content: str
+    content: str = Field(min_length=1, max_length=500)
+
+
+class CommentResponse(CommentCreate):
+    id: int
+    user_id: int
+    author: str
+
+    model_config = {"from_attributes": True}

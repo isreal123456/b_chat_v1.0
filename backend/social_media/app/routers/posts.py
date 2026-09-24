@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import exists, func, select
 
 from app.database.database import get_db
@@ -13,17 +14,12 @@ from app.models.post import Post
 from app.models.save import Save
 from app.models.share import Share
 from app.models.user import User
-from app.models.search_history import SearchHistory
-from app.schemas.post import PostCreate
-
 from app.schemas.post import PostCreate
 
 from app.services.post_service import (
     calculate_engagement,
     calculate_post_score,
     calculate_recency,
-    create_user_embedding,
-    calculate_interest_score,
 )
 
 
@@ -35,36 +31,6 @@ async def get_all_posts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-
-    # --------------------------------
-    # 1. Get user's search history
-    # --------------------------------
-
-    search_result = await db.execute(
-        select(SearchHistory.query)
-        .where(
-            SearchHistory.user_id == current_user.id
-        )
-        .order_by(
-            SearchHistory.created_at.desc()
-        )
-        .limit(20)
-    )
-
-    search_history = search_result.scalars().all()
-
-
-    # --------------------------------
-    # 2. Create user embedding ONCE
-    # --------------------------------
-
-    user_embedding = None
-
-    if search_history:
-        user_embedding = create_user_embedding(
-            search_history
-        )
-
 
     # --------------------------------
     # 3. Count engagement
@@ -96,6 +62,20 @@ async def get_all_posts(
         .where(Save.post_id == Post.id)
         .correlate(Post)
         .scalar_subquery()
+    )
+
+    liked_by_user = exists(
+        select(Like.id).where(
+            Like.post_id == Post.id,
+            Like.user_id == current_user.id,
+        )
+    )
+
+    saved_by_user = exists(
+        select(Save.id).where(
+            Save.post_id == Post.id,
+            Save.user_id == current_user.id,
+        )
     )
 
 
@@ -146,13 +126,16 @@ async def get_all_posts(
     result = await db.execute(
         select(
             Post,
+            User.username,
             like_count,
             comment_count,
             share_count,
             save_count,
             affinity_score,
             is_followed,
-        )
+            liked_by_user,
+            saved_by_user,
+        ).join(User, User.id == Post.user_id)
     )
 
 
@@ -164,12 +147,15 @@ async def get_all_posts(
 
     for (
         post,
+        author,
         likes,
         comments,
         shares,
         saves,
         affinity,
         followed,
+        liked,
+        saved,
     ) in result.all():
 
         # Engagement
@@ -185,20 +171,10 @@ async def get_all_posts(
             post.created_at
         )
 
-        # Interest
-        interest_score = 0.0
-
-        if user_embedding is not None:
-            interest_score = calculate_interest_score(
-                user_embedding=user_embedding,
-                post_text=post.content,
-            )
-
         # Final score
         score = calculate_post_score(
             engagement=engagement,
             recency=recency,
-            interest_affinity=interest_score,
             is_followed=followed,
         )
 
@@ -206,13 +182,19 @@ async def get_all_posts(
             {
                 "id": post.id,
                 "user_id": post.user_id,
+                "author": author,
                 "content": post.content,
                 "created_at": post.created_at,
 
                 "engagement": engagement,
                 "recency": recency,
-                "interest": interest_score,
                 "followed": followed,
+                "like_count": likes,
+                "comment_count": comments,
+                "share_count": shares,
+                "save_count": saves,
+                "liked": liked,
+                "saved": saved,
 
                 "score": score,
             }
@@ -229,22 +211,41 @@ async def get_all_posts(
         reverse=True,
     )
 
-async def creeate_post(
-    craetepost = PostCreate,
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_post(
+    post_data: PostCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),  
 ): 
     post = Post(
         user_id=current_user.id,
-        content=craetepost.content
+        content=post_data.content
             )
     db.add(post)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a post with this content",
+        )
     await db.refresh(post)
-    return post
+    return {
+        "id": post.id,
+        "user_id": post.user_id,
+        "author": current_user.username,
+        "content": post.content,
+        "created_at": post.created_at,
+        "like_count": 0,
+        "comment_count": 0,
+        "share_count": 0,
+        "save_count": 0,
+        "liked": False,
+        "saved": False,
+    }
 
-
-
+@router.delete("/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_post(
     post_id: int,
     db: AsyncSession = Depends(get_db),

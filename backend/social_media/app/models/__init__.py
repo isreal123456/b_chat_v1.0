@@ -9,6 +9,7 @@ from app.models.like import Like
 from app.models.message import Message
 from app.models.notification import Notification
 from app.models.post import Post
+from app.models.profile_image import ProfileImage
 from app.models.post_impression import PostImpression
 from app.models.save import Save
 from app.models.search_history import SearchHistory
@@ -30,6 +31,7 @@ __all__ = [
 	"Message",
 	"Notification",
 	"Post",
+	"ProfileImage",
 	"PostImpression",
 	"Save",
 	"SearchHistory",

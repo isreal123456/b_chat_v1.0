@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { API_BASE_URL } from "../../../lib/api";
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -34,19 +35,22 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      // Replace with your actual auth call, e.g. lib/auth.js -> signup()
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch(`${API_BASE_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          username: form.username,
+          email: form.email,
+          password: form.password,
+        }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || "Could not create account.");
+        throw new Error(data.detail || "Could not create account.");
       }
 
-      // redirect on success, e.g. router.push("/login")
+      window.location.href = "/login";
     } catch (err) {
       setError(err.message || "Something went wrong. Try again.");
     } finally {

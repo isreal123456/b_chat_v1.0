@@ -2,8 +2,9 @@ import Avatar from '../ui/Avatar'
 import Button from '../ui/Button'
 import VerifiedBadge from '../ui/VerifiedBadge'
 import { formatCount } from '../../lib/utils'
+import { UserPlus } from 'lucide-react'
 
-export default function ProfileCard({ user }) {
+export default function ProfileCard({ user, isOwnProfile, requestSent, onFriendRequest }) {
   return (
     <article className="panel profile-card">
       <div className="profile-card__header">
@@ -21,7 +22,14 @@ export default function ProfileCard({ user }) {
         <div><strong>{formatCount(user.followers)}</strong><span>Followers</span></div>
         <div><strong>{formatCount(user.following)}</strong><span>Following</span></div>
       </div>
-      <Button type="button">Edit profile</Button>
+      {isOwnProfile ? (
+        <Button type="button">Edit profile</Button>
+      ) : (
+        <Button type="button" onClick={onFriendRequest} disabled={requestSent}>
+          <UserPlus size={16} />
+          {requestSent ? 'Request Sent' : 'Friend Request'}
+        </Button>
+      )}
     </article>
   )
 }
