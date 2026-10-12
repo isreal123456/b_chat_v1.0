@@ -1,14 +1,26 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+from contextlib import asynccontextmanager
 from app.dependencies.auth import get_current_user
 from app.database.base import Base
 from app.database.database import engine
-from app.routers import friends, likes, messages, notifications, posts, saves, users, auth, comments
+from app.routers import friends, likes, messages, notifications, posts, saves, users, auth, comments, conversations
 
 from app.core.config import settings
+from app.services.feed_cache import close_feed_cache
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        yield
+    finally:
+        await close_feed_cache()
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 
 @app.get("/", tags=["health"])
@@ -36,11 +48,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(posts.router)
@@ -50,6 +57,7 @@ app.include_router(friends.router)
 app.include_router(messages.router)
 app.include_router(notifications.router)
 app.include_router(comments.router)
+app.include_router(conversations.router)
 app.include_router(notifications.websocket_router)
 
 

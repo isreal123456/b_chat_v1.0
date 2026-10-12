@@ -8,6 +8,8 @@ from app.dependencies import get_current_user
 from app.models.post import Post
 from app.models.save import Save
 from app.models.user import User
+from app.services.post_access import get_visible_post
+from app.services.feed_cache import invalidate_feed_cache
 
 router = APIRouter(prefix="/saves", tags=["saves"])
 
@@ -18,9 +20,7 @@ async def save_post(
 	current_user: User = Depends(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ):
-	post = await db.get(Post, post_id)
-	if post is None:
-		raise HTTPException(status_code=404, detail="Post not found")
+	await get_visible_post(post_id, current_user, db)
 
 	result = await db.execute(
 		select(Save).where(
@@ -39,6 +39,7 @@ async def save_post(
 		await db.rollback()
 		raise HTTPException(status_code=400, detail="Post already saved")
 	await db.refresh(saved_post)
+	await invalidate_feed_cache(current_user.id)
 
 	return {"message": "Post saved successfully", "save_id": saved_post.id}
 
@@ -61,6 +62,7 @@ async def unsave_post(
 
 	await db.delete(saved_post)
 	await db.commit()
+	await invalidate_feed_cache(current_user.id)
 	return {"message": "Post unsaved successfully"}
 
 

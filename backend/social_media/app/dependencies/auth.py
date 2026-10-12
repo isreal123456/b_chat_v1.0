@@ -7,11 +7,11 @@ from app.core.security import decode_access_token
 from app.database.database import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
-async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
-    subject = decode_access_token(token)
+async def get_current_user_id(token: str | None = Depends(oauth2_scheme)) -> str:
+    subject = decode_access_token(token) if token else None
     if subject is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -22,10 +22,10 @@ async def get_current_user_id(token: str = Depends(oauth2_scheme)) -> str:
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    subject = decode_access_token(token)
+    subject = decode_access_token(token) if token else None
     if subject is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

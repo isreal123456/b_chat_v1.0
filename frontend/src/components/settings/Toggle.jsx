@@ -1,4 +1,4 @@
-export default function Toggle({ checked, onChange, label, hint }) {
+export default function Toggle({ checked, onChange, label, hint, disabled = false }) {
   return (
     <div className="flex items-center justify-between py-3">
       <div>
@@ -13,6 +13,7 @@ export default function Toggle({ checked, onChange, label, hint }) {
 
       <button
         type="button"
+        disabled={disabled}
         role="switch"
         aria-checked={checked}
         aria-label={label}
