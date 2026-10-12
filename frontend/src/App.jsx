@@ -12,6 +12,7 @@ import LandingPage from "./app/landing/page.jsx";
 import LoginPage from "./app/(auth)/login/page.jsx";
 import RegisterPage from "./app/(auth)/register/page.jsx";
 import AuthPage from "./app/auth/page.jsx";
+import PasswordResetPage from "./app/(auth)/password-reset/page.jsx";
 import { getAccessToken } from "./lib/api";
 
 function ProtectedRoute({ children }) {
@@ -42,6 +43,8 @@ export default function App() {
         {/* Authentication */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<PasswordResetPage />} />
+        <Route path="/reset-password" element={<PasswordResetPage />} />
         <Route path="/auth" element={<AuthPage />} />
 
         {/* Profile */}

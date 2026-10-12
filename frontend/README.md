@@ -1,4 +1,29 @@
-# React + Vite
+# bchat frontend
+
+## Deploy to Vercel
+
+Import this repository into Vercel and set the project **Root Directory** to `frontend`.
+Vercel will use `npm install`, `npm run build`, and the `dist` output directory from
+`vercel.json`. The rewrite there keeps React Router routes working on direct visits.
+
+Add this project environment variable in Vercel for each deployment environment:
+
+```text
+VITE_API_URL=https://your-deployed-backend.example.com
+```
+
+Use the backend's public HTTPS origin without a trailing slash. The backend must be
+deployed separately; set its `CORS_ORIGINS` environment variable to the frontend's
+Vercel domain if you want to restrict cross-origin requests to that domain. The
+backend also accepts `*.vercel.app` origins by default.
+
+For password reset emails, configure the backend's `FRONTEND_URL` to the deployed
+frontend origin so links open on Vercel.
+
+## Local development
+
+Run `npm install` and `npm run dev` from this directory. Without `VITE_API_URL`,
+the frontend connects to `http://127.0.0.1:8000`.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

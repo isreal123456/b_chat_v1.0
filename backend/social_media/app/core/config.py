@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     secret_key: str = "changfjkhjvgfxhgjgjhon"
     message_encryption_key: str = ""
     access_token_expire_minutes: int = 30
+    password_reset_token_expire_minutes: int = 30
+    frontend_url: str = "http://localhost:5173"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
 
     @field_validator("debug", mode="before")
     @classmethod
