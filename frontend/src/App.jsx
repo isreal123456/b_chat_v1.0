@@ -6,6 +6,8 @@ import MessagesPage from "./app/messages/page.jsx";
 import SettingsPage from "./app/settings/page.jsx";
 import FriendRequestsPage from "./app/friend-requests/page.jsx";
 import ProfilePage from "./app/profile/[username]/page.jsx";
+import NotificationsPage from "./app/notifications/page.jsx";
+import LandingPage from "./app/landing/page.jsx";
 
 import LoginPage from "./app/(auth)/login/page.jsx";
 import RegisterPage from "./app/(auth)/register/page.jsx";
@@ -21,7 +23,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Root entry */}
-        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/" element={<LandingPage />} />
 
         {/* Home */}
         <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
@@ -31,6 +33,7 @@ export default function App() {
 
         {/* Messages */}
         <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
+        <Route path="/notifications" element={<ProtectedRoute><NotificationsPage /></ProtectedRoute>} />
 
         {/* Settings */}
         <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

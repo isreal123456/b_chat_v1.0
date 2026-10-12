@@ -1,29 +1,24 @@
 import Avatar from '../ui/Avatar'
 import Button from '../ui/Button'
-import VerifiedBadge from '../ui/VerifiedBadge'
-import { formatCount } from '../../lib/utils'
 import { UserPlus } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { getMediaUrl } from '../../lib/api'
 
 export default function ProfileCard({ user, isOwnProfile, requestSent, onFriendRequest }) {
   return (
     <article className="panel profile-card">
       <div className="profile-card__header">
-        <Avatar name={user.name} size={72} />
+        <Avatar name={user.name} src={user.avatar_url ? getMediaUrl(user.avatar_url) : undefined} size={72} />
         <div>
           <div className="profile-card__name-row">
             <h2>{user.name}</h2>
-            <VerifiedBadge />
           </div>
           <p className="muted">@{user.username}</p>
         </div>
       </div>
-      <p>{user.bio}</p>
-      <div className="profile-card__stats">
-        <div><strong>{formatCount(user.followers)}</strong><span>Followers</span></div>
-        <div><strong>{formatCount(user.following)}</strong><span>Following</span></div>
-      </div>
+      {user.bio && <p>{user.bio}</p>}
       {isOwnProfile ? (
-        <Button type="button">Edit profile</Button>
+        <Link className="button" to="/settings">Edit profile</Link>
       ) : (
         <Button type="button" onClick={onFriendRequest} disabled={requestSent}>
           <UserPlus size={16} />

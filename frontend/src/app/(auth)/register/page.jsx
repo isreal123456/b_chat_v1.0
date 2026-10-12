@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
-import { API_BASE_URL } from "../../../lib/api";
+import { api } from "../../../lib/api";
 
 export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -35,20 +35,16 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      await api("/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: form.username,
+          name: form.name,
           email: form.email,
           password: form.password,
         }),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || "Could not create account.");
-      }
 
       window.location.href = "/login";
     } catch (err) {
@@ -81,7 +77,7 @@ export default function SignupPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Full name */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="register-name" className="text-sm text-neutral-300 mb-1 block">
               Full name
             </label>
             <div className="relative">
@@ -92,6 +88,7 @@ export default function SignupPage() {
               <input
                 type="text"
                 name="name"
+                id="register-name"
                 value={form.name}
                 onChange={handleChange}
                 placeholder="Elviz Dizzouza"
@@ -102,7 +99,7 @@ export default function SignupPage() {
 
           {/* Username */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="register-username" className="text-sm text-neutral-300 mb-1 block">
               Username
             </label>
             <div className="relative">
@@ -112,6 +109,7 @@ export default function SignupPage() {
               <input
                 type="text"
                 name="username"
+                id="register-username"
                 value={form.username}
                 onChange={handleChange}
                 placeholder="elvizoodem"
@@ -122,7 +120,7 @@ export default function SignupPage() {
 
           {/* Email */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="register-email" className="text-sm text-neutral-300 mb-1 block">
               Email
             </label>
             <div className="relative">
@@ -133,6 +131,7 @@ export default function SignupPage() {
               <input
                 type="email"
                 name="email"
+                id="register-email"
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
@@ -143,7 +142,7 @@ export default function SignupPage() {
 
           {/* Password */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="register-password" className="text-sm text-neutral-300 mb-1 block">
               Password
             </label>
             <div className="relative">
@@ -154,6 +153,7 @@ export default function SignupPage() {
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
+                id="register-password"
                 value={form.password}
                 onChange={handleChange}
                 placeholder="At least 8 characters"
@@ -161,6 +161,7 @@ export default function SignupPage() {
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
               >
@@ -169,17 +170,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <p className="text-xs text-neutral-500">
-            By signing up, you agree to our{" "}
-            <a href="/terms" className="text-yellow-400 hover:underline">
-              Terms
-            </a>{" "}
-            and{" "}
-            <a href="/privacy" className="text-yellow-400 hover:underline">
-              Privacy Policy
-            </a>
-            .
-          </p>
+          <p className="text-xs text-neutral-500">Create an account with a valid email and a password of at least 8 characters.</p>
 
           <button
             type="submit"

@@ -1,40 +1,26 @@
 "use client";
 
-import { useState } from "react";
 import SectionCard from "./SectionCard";
 import Toggle from "./Toggle";
+import { usePreferences } from "../../hooks/usePreferences";
 
 export default function PrivacyPanel() {
-  const [prefs, setPrefs] = useState({
-    privateAccount: false,
-    showActivity: true,
-    tagging: true,
-  });
-
-  const update = (key) => (val) => setPrefs({ ...prefs, [key]: val });
+  const { preferences: prefs, loading, saving, error, update } = usePreferences();
 
   return (
     <SectionCard title="Privacy" description="Control who can see your content and activity.">
-      <div className="divide-y divide-neutral-700">
+      {loading ? <p role="status" className="text-sm text-neutral-500">Loading preferences…</p> : !prefs ? <p role="alert" className="text-sm text-red-300">{error}</p> : <div className="divide-y divide-neutral-700">
         <Toggle
-          checked={prefs.privateAccount}
-          onChange={update("privateAccount")}
+          checked={prefs.private_account}
+          onChange={(v) => update("private_account", v)}
+          disabled={saving}
           label="Private account"
           hint="Only approved followers can see your posts"
         />
-        <Toggle
-          checked={prefs.showActivity}
-          onChange={update("showActivity")}
-          label="Show activity status"
-          hint="Let others see when you're online"
-        />
-        <Toggle
-          checked={prefs.tagging}
-          onChange={update("tagging")}
-          label="Allow tagging"
-          hint="Let others tag you in posts and photos"
-        />
       </div>
+      }
+      {error && prefs && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
+      {saving && <p role="status" className="mt-3 text-xs text-neutral-500">Saving…</p>}
     </SectionCard>
   );
 }

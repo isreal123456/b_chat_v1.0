@@ -25,8 +25,8 @@ export function usePosts() {
     }
   }, [])
 
-  const addPost = async (content) => {
-    const post = await createPost(content)
+  const addPost = async (content, attachment = null) => {
+    const post = await createPost(content, attachment)
     setPosts((currentPosts) => [post, ...currentPosts])
     return post
   }

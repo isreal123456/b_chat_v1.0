@@ -7,6 +7,7 @@ from app.database.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.friend_request import FriendRequest
+from app.services.notification_service import create_notification
 
 
 router = APIRouter(
@@ -22,7 +23,8 @@ def serialize_request(friend_request: FriendRequest, user: User) -> dict:
         "user": {
             "id": user.id,
             "username": user.username,
-            "name": user.username,
+            "name": user.display_name or user.username,
+            "avatar_url": f"/users/{user.id}/avatar",
         },
     }
 
@@ -87,6 +89,10 @@ async def send_friend_request(
             existing_request.sender_id = current_user.id
             existing_request.receiver_id = user_id
             existing_request.status = "pending"
+            await create_notification(
+                db, recipient_id=user_id, sender_id=current_user.id,
+                kind="friend_request", message=f"{current_user.display_name or current_user.username} sent you a friend request",
+            )
 
             await db.commit()
 
@@ -101,6 +107,10 @@ async def send_friend_request(
     )
 
     db.add(friend_request)
+    await create_notification(
+        db, recipient_id=user_id, sender_id=current_user.id,
+        kind="friend_request", message=f"{current_user.display_name or current_user.username} sent you a friend request",
+    )
 
     await db.commit()
     await db.refresh(friend_request)
@@ -191,6 +201,10 @@ async def accept_friend_request(
         )
 
     friend_request.status = "accepted"
+    await create_notification(
+        db, recipient_id=friend_request.sender_id, sender_id=current_user.id,
+        kind="friend_accepted", message=f"{current_user.display_name or current_user.username} accepted your friend request",
+    )
 
     await db.commit()
 
@@ -324,8 +338,8 @@ async def get_my_friends(
         {
             "id": friend.id,
             "username": friend.username,
-            "email": friend.email,
-            "name": friend.username,
+            "name": friend.display_name or friend.username,
+            "avatar_url": f"/users/{friend.id}/avatar",
         }
         for friend in friends
     ]
@@ -387,8 +401,8 @@ async def get_user_friends(
         {
             "id": friend.id,
             "username": friend.username,
-            "email": friend.email,
-            "name": friend.username,
+            "name": friend.display_name or friend.username,
+            "avatar_url": f"/users/{friend.id}/avatar",
         }
         for friend in friends
     ]

@@ -9,6 +9,8 @@ from app.models.like import Like
 from app.models.message import Message
 from app.models.notification import Notification
 from app.models.post import Post
+from app.models.post_image import PostImage
+from app.models.post_video import PostVideo
 from app.models.profile_image import ProfileImage
 from app.models.post_impression import PostImpression
 from app.models.save import Save
@@ -17,6 +19,7 @@ from app.models.share import Share
 from app.models.user import User
 from app.models.user_interaction import UserInteraction
 from app.models.user_interest import UserInterest
+from app.models.user_preferences import UserPreferences
 
 __all__ = [
 	"Base",
@@ -31,6 +34,8 @@ __all__ = [
 	"Message",
 	"Notification",
 	"Post",
+	"PostImage",
+	"PostVideo",
 	"ProfileImage",
 	"PostImpression",
 	"Save",
@@ -39,4 +44,5 @@ __all__ = [
 	"User",
 	"UserInteraction",
 	"UserInterest",
+	"UserPreferences",
 ]

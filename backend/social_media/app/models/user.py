@@ -38,3 +38,6 @@ class User(Base):
         default=datetime.utcnow,
         nullable=False
     )
+
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    bio: Mapped[str] = mapped_column(String(160), nullable=False, default="")

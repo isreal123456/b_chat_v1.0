@@ -57,15 +57,12 @@ function ConversationList({ conversations, activeId, onSelect }) {
           >
             <div className="relative shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-yellow-400 font-semibold text-neutral-900">
               {c.name.charAt(0).toUpperCase()}
-              {c.online && (
-                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-400 rounded-full border-2 border-neutral-800" />
-              )}
             </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
                 <p className="text-white text-sm font-medium truncate">{c.name}</p>
-                <span className="text-neutral-500 text-xs shrink-0">{c.time}</span>
+                <span className="text-neutral-500 text-xs shrink-0">{c.time ? new Date(c.time).toLocaleDateString() : ""}</span>
               </div>
               <p className="text-neutral-500 text-xs truncate">{c.lastMessage}</p>
             </div>
@@ -101,8 +98,7 @@ function ChatWindow({ conversation, thread, onSend, connected }) {
   const handleSend = (e) => {
     e.preventDefault();
     if (!draft.trim()) return;
-    onSend(conversation.id, draft.trim());
-    setDraft("");
+    if (onSend(conversation.id, draft.trim())) setDraft("");
   };
 
   return (
@@ -154,6 +150,7 @@ function ChatWindow({ conversation, thread, onSend, connected }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Write a message..."
+          maxLength={5000}
           disabled={!connected}
           aria-label="Write a message"
           className="flex-1 bg-neutral-900 text-neutral-300 placeholder-neutral-500 rounded-full px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
@@ -189,7 +186,7 @@ export default function MessagesPage() {
     fetchConversations().then((data) => {
       setConversations(data);
       const requestedId = Number(searchParams.get("user"));
-      setActiveId((current) => current || (data.some((conversation) => conversation.id === requestedId) ? requestedId : data[0]?.id) || null);
+      setActiveId((current) => (data.some((conversation) => conversation.id === requestedId) ? requestedId : current || data[0]?.id) || null);
     }).catch((requestError) => {
       setError(requestError.message || "Could not load conversations.");
     }).finally(() => setLoading(false));
@@ -197,7 +194,7 @@ export default function MessagesPage() {
 
   useEffect(() => {
     let active = true;
-    api("/profile")
+    api("/users/me")
       .then((user) => {
         if (active) setCurrentUserId(user.id);
       })
@@ -227,7 +224,9 @@ export default function MessagesPage() {
       setError("Message connection unavailable. Check that the API is running.");
     };
     nextSocket.onmessage = (event) => {
-      const message = JSON.parse(event.data);
+      let message;
+      try { message = JSON.parse(event.data); }
+      catch { setError("Received an unreadable message from the server."); return; }
       if (message.error) {
         setError(message.error);
         return;
@@ -253,17 +252,22 @@ export default function MessagesPage() {
 
   useEffect(() => {
     if (!currentUserId || !activeId) return;
+    let active = true;
     api(`/messages/${activeId}/history`)
-      .then((messages) => setThreads((current) => ({
+      .then((messages) => { if (!active) return; setThreads((current) => ({
         ...current,
-        [activeId]: messages.map((message) => ({
+        [activeId]: [...new Map([
+          ...(current[activeId] || []),
+          ...messages.map((message) => ({
           id: message.id,
           from: message.sender_id === currentUserId ? "me" : "them",
           text: message.content,
           time: new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        })),
-      })))
-      .catch(() => setThreads((current) => ({ ...current, [activeId]: [] })));
+          })),
+        ].map((message) => [message.id, message])).values()].sort((a, b) => a.id - b.id),
+      })); })
+      .catch((requestError) => { if (active) setError(requestError.message || "Could not load message history."); });
+    return () => { active = false; };
   }, [activeId, currentUserId]);
 
   const sendMessage = (receiverId, content) => {
@@ -272,6 +276,8 @@ export default function MessagesPage() {
       return;
     }
     socketRef.current.send(JSON.stringify({ receiver_id: receiverId, content }));
+    setError("");
+    return true;
   };
 
   return (

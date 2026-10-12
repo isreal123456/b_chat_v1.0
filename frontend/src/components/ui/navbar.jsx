@@ -5,20 +5,24 @@ import {
   Settings,
   Search,
   Bell,
+  UserRound,
   LogOut,
 } from "lucide-react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 function TopNav({
   items = [
-    { icon: Home, link: "/" },
+    { icon: Home, link: "/home" },
     { icon: Users, link: "/explore" },
     { icon: MessageCircle, link: "/messages" },
-    { icon: Bell, link: "/friend-requests" },
+    { icon: Bell, link: "/notifications" },
+    { icon: UserRound, link: "/friend-requests" },
     { icon: Settings, link: "/settings" },
   ],
 }) {
   const navigate = useNavigate();
+  const [query, setQuery] = useState("");
 
   const handleLogout = () => {
     localStorage.removeItem("access_token");
@@ -36,7 +40,7 @@ function TopNav({
       </div>
 
       {/* Search */}
-      <div className="relative flex-1 max-w-xs">
+      <form className="relative flex-1 max-w-xs" role="search" onSubmit={(event) => { event.preventDefault(); navigate(`/explore?q=${encodeURIComponent(query.trim())}`); }}>
         <Search
           size={16}
           className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
@@ -44,10 +48,13 @@ function TopNav({
 
         <input
           type="text"
-          placeholder="#Explore"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label="Search people"
+          placeholder="Search people"
           className="w-full bg-neutral-800 text-neutral-300 placeholder-neutral-500 rounded-full pl-9 pr-4 py-2 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
         />
-      </div>
+      </form>
 
       {/* Navigation */}
       <nav className="flex items-center gap-5 mx-auto">
@@ -55,6 +62,8 @@ function TopNav({
           <NavLink
             key={i}
             to={link}
+            aria-label={link === "/home" ? "Home" : link === "/explore" ? "Explore" : link === "/messages" ? "Messages" : link === "/notifications" ? "Notifications" : link === "/friend-requests" ? "Friend requests" : "Settings"}
+            title={link === "/home" ? "Home" : link === "/explore" ? "Explore" : link === "/messages" ? "Messages" : link === "/notifications" ? "Notifications" : link === "/friend-requests" ? "Friend requests" : "Settings"}
             className={({ isActive }) =>
               `p-2 rounded-full transition-colors ${
                 isActive

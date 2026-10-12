@@ -1,12 +1,14 @@
 from fastapi import APIRouter
 from app.models.like import Like
-from app.models.post import Post
 from app.database.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends, HTTPException, status
 from app.dependencies import get_current_user
 from app.models.user import User
 from sqlalchemy import and_, func, select
+from app.services.post_access import get_visible_post
+from app.services.notification_service import create_notification
+from app.services.feed_cache import invalidate_feed_cache
 
 router = APIRouter(prefix="/likes", tags=["likes"])
 
@@ -16,8 +18,7 @@ async def like_post(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    if await db.get(Post, post_id) is None:
-        raise HTTPException(status_code=404, detail="Post not found")
+    post = await get_visible_post(post_id, current_user, db)
 
     # Check if the user has already liked the post
     result = await db.execute(
@@ -35,8 +36,14 @@ async def like_post(
 
     new_like = Like(post_id=post_id, user_id=current_user.id)
     db.add(new_like)
+    await create_notification(
+        db, recipient_id=post.user_id, sender_id=current_user.id,
+        kind="like", message=f"{current_user.display_name or current_user.username} liked your post",
+        post_id=post.id,
+    )
     await db.commit()
     await db.refresh(new_like)
+    await invalidate_feed_cache(current_user.id)
 
     return {"message": "Post liked successfully", "like_id": new_like.id}
 
@@ -47,6 +54,7 @@ async def unlike_post(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    await get_visible_post(post_id, current_user, db)
     # Check if the user has liked the post
     result = await db.execute(
         select(Like).where(
@@ -63,6 +71,7 @@ async def unlike_post(
 
     await db.delete(existing_like)
     await db.commit()
+    await invalidate_feed_cache(current_user.id)
 
     return {"message": "Post unliked successfully"}
 
@@ -70,8 +79,10 @@ async def unlike_post(
 @router.get("/{post_id}/count", status_code=status.HTTP_200_OK)
 async def get_like_count(
     post_id: int,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
+    await get_visible_post(post_id, current_user, db)
     result = await db.execute(
         select(func.count(Like.id)).where(Like.post_id == post_id)
     )

@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.core.config import settings
 from app.database.database import get_db
 from app.dependencies import get_current_user
 from app.models.message import Message
+from app.models.friend_request import FriendRequest
+from app.services.notification_service import create_notification
 from app.models.user import User
 
 
@@ -49,7 +51,8 @@ async def websocket_endpoint(
         await websocket.close(code=1008, reason="Invalid or missing token")
         return
 
-    await manager.connect(current_user.id, websocket)
+    current_user_id = current_user.id
+    await manager.connect(current_user_id, websocket)
 
     try:
         while True:
@@ -57,18 +60,42 @@ async def websocket_endpoint(
 
             receiver_id = data.get("receiver_id")
             content = data.get("content")
-            if not isinstance(receiver_id, int) or not isinstance(content, str) or not content.strip():
-                await websocket.send_json({"error": "receiver_id and non-empty content are required"})
+            if (not isinstance(receiver_id, int) or isinstance(receiver_id, bool)
+                    or not isinstance(content, str) or not content.strip() or len(content) > 5000):
+                await websocket.send_json({"error": "Enter a receiver and a message of 1 to 5000 characters"})
                 continue
+            receiver = await db.get(User, receiver_id)
+            if receiver is None:
+                await websocket.send_json({"error": "Recipient not found"})
+                continue
+            if receiver_id != current_user_id:
+                friendship = await db.execute(select(FriendRequest.id).where(
+                    FriendRequest.status == "accepted",
+                    or_(
+                    (FriendRequest.sender_id == current_user_id) & (FriendRequest.receiver_id == receiver_id),
+                    (FriendRequest.sender_id == receiver_id) & (FriendRequest.receiver_id == current_user_id),
+                    ),
+                ).limit(1))
+                prior_message = await db.execute(select(Message.id).where(or_(
+                    (Message.sender_id == current_user_id) & (Message.receiver_id == receiver_id),
+                    (Message.sender_id == receiver_id) & (Message.receiver_id == current_user_id),
+                )).limit(1))
+                if friendship.scalar_one_or_none() is None and prior_message.scalar_one_or_none() is None:
+                    await websocket.send_json({"error": "You can message friends or continue an existing conversation"})
+                    continue
 
             message = Message(
-                sender_id=current_user.id,
+                sender_id=current_user_id,
                 receiver_id=receiver_id,
                 content=content,
                 is_read=False,
             )
 
             db.add(message)
+            await create_notification(
+                db, recipient_id=receiver_id, sender_id=current_user_id,
+                kind="message", message=f"{current_user.display_name or current_user.username} sent you a message",
+            )
             await db.commit()
             await db.refresh(message)
 
@@ -81,14 +108,16 @@ async def websocket_endpoint(
                 "created_at": message.created_at.isoformat(),
             }
             await manager.send_message(receiver_id, payload)
-            if receiver_id != current_user.id:
-                await manager.send_message(current_user.id, payload)
+            if receiver_id != current_user_id:
+                await manager.send_message(current_user_id, payload)
 
 
             
 
     except WebSocketDisconnect:
-        manager.disconnect(current_user.id)
+        pass
+    finally:
+        manager.disconnect(current_user_id)
 
 
 async def authenticate_websocket_user(
@@ -119,12 +148,19 @@ async def get_message_history(
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(Message).where(
-            (Message.sender_id == current_user.id) & (Message.receiver_id == user_id) |
-            (Message.sender_id == user_id) & (Message.receiver_id == current_user.id)
-        ).order_by(Message.created_at)
+        select(Message).where(or_(
+            (Message.sender_id == current_user.id) & (Message.receiver_id == user_id),
+            (Message.sender_id == user_id) & (Message.receiver_id == current_user.id),
+        )).order_by(Message.created_at)
     )
     messages = result.scalars().all()
+    changed = False
+    for message in messages:
+        if message.receiver_id == current_user.id and not message.is_read:
+            message.is_read = True
+            changed = True
+    if changed:
+        await db.commit()
 
     return [
         {

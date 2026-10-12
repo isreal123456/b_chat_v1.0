@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { API_BASE_URL } from "../../../lib/api";
+import { api } from "../../../lib/api";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -29,19 +29,13 @@ export default function LoginPage() {
         username: form.email,
         password: form.password,
       });
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      const data = await api("/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body,
       });
-
-      if (!res.ok) {
-        throw new Error("Invalid email or password.");
-      }
-
-      const data = await res.json();
       localStorage.setItem("access_token", data.access_token);
-      window.location.href = "/messages";
+      window.location.href = "/home";
     } catch (err) {
       setError(err.message || "Something went wrong. Try again.");
     } finally {
@@ -72,7 +66,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Email */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="login-email" className="text-sm text-neutral-300 mb-1 block">
               Email
             </label>
             <div className="relative">
@@ -82,6 +76,7 @@ export default function LoginPage() {
               />
               <input
                 type="email"
+                id="login-email"
                 name="email"
                 value={form.email}
                 onChange={handleChange}
@@ -93,7 +88,7 @@ export default function LoginPage() {
 
           {/* Password */}
           <div>
-            <label className="text-sm text-neutral-300 mb-1 block">
+            <label htmlFor="login-password" className="text-sm text-neutral-300 mb-1 block">
               Password
             </label>
             <div className="relative">
@@ -103,6 +98,7 @@ export default function LoginPage() {
               />
               <input
                 type={showPassword ? "text" : "password"}
+                id="login-password"
                 name="password"
                 value={form.password}
                 onChange={handleChange}
@@ -111,6 +107,7 @@ export default function LoginPage() {
               />
               <button
                 type="button"
+                aria-label={showPassword ? "Hide password" : "Show password"}
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
               >
@@ -119,18 +116,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-neutral-400">
-              <input
-                type="checkbox"
-                className="accent-yellow-400 rounded"
-              />
-              Remember me
-            </label>
-            <a href="/forgot-password" className="text-yellow-400 hover:underline">
-              Forgot password?
-            </a>
-          </div>
+          <p className="text-xs text-neutral-500">Use the email address linked to your account.</p>
 
           <button
             type="submit"

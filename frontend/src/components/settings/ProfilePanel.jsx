@@ -15,6 +15,8 @@ export default function ProfilePanel() {
   });
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     api("/users/me").then((user) => {
@@ -22,9 +24,11 @@ export default function ProfilePanel() {
         ...current,
         name: user.name || user.username,
         username: user.username,
+        bio: user.bio || "",
         avatar_url: user.avatar_url,
       }));
-    }).catch(() => undefined);
+    }).catch((error) => setLoadError(error.message || "Could not load your profile settings."))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleChange = (e) =>
@@ -62,10 +66,10 @@ export default function ProfilePanel() {
     try {
       const user = await api("/users/me", {
         method: "PATCH",
-        body: JSON.stringify({ username: form.username.trim() }),
+        body: JSON.stringify({ username: form.username.trim(), name: form.name.trim(), bio: form.bio.trim() }),
       });
-      setForm((current) => ({ ...current, username: user.username }));
-      setStatus("Username saved.");
+      setForm((current) => ({ ...current, username: user.username, name: user.name, bio: user.bio }));
+      setStatus("Profile saved.");
     } catch (error) {
       setStatus(error.message || "Could not save profile.");
     } finally {
@@ -79,7 +83,8 @@ export default function ProfilePanel() {
         <div className="flex items-center gap-4">
           <div className="relative">
             <img
-              src={form.avatar_url ? getMediaUrl(form.avatar_url) : `https://i.pravatar.cc/200?u=${form.username || "profile"}`}
+              src={form.avatar_url ? getMediaUrl(form.avatar_url) : "/avatar-placeholder.svg"}
+              onError={(event) => { event.currentTarget.src = "/avatar-placeholder.svg"; }}
               alt="Profile"
               className="w-20 h-20 rounded-2xl object-cover"
             />
@@ -141,9 +146,10 @@ export default function ProfilePanel() {
           </Field>
         </div>
 
+        {loadError && <p role="alert" className="text-sm text-red-300">{loadError}</p>}
         {status && <p role="status" className="mt-4 text-sm text-neutral-300">{status}</p>}
-        <button type="submit" disabled={saving || !form.username.trim()} className="mt-5 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
-          {saving ? "Saving..." : "Save changes"}
+        <button type="submit" disabled={loading || saving || !form.username.trim() || !form.name.trim()} className="mt-5 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+          {loading ? "Loading…" : saving ? "Saving..." : "Save changes"}
         </button>
       </SectionCard>
     </form>

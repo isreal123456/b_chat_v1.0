@@ -2,7 +2,6 @@
 
 import Field from "./Field";
 import SectionCard from "./SectionCard";
-import Toggle from "./Toggle";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 
@@ -12,9 +11,13 @@ export default function AccountPanel() {
   const [newPassword, setNewPassword] = useState("");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    api("/users/me").then((user) => setEmail(user.email)).catch(() => undefined);
+    api("/users/me").then((user) => setEmail(user.email))
+      .catch((error) => setLoadError(error.message || "Could not load account details."))
+      .finally(() => setLoading(false));
   }, []);
 
   const updatePassword = async (event) => {
@@ -39,6 +42,8 @@ export default function AccountPanel() {
   return (
     <div className="space-y-6">
       <SectionCard title="Email & password">
+        {loading && <p role="status" className="text-sm text-neutral-500">Loading account details…</p>}
+        {loadError && <p role="alert" className="mb-3 text-sm text-red-300">{loadError}</p>}
         <form className="space-y-4" onSubmit={updatePassword}>
           <Field label="Email address">
             <input
@@ -68,15 +73,13 @@ export default function AccountPanel() {
             />
           </Field>
           {status && <p role="status" className="text-sm text-neutral-300">{status}</p>}
-          <button type="submit" disabled={saving || !currentPassword || newPassword.length < 8} className="mt-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
+          <button type="submit" disabled={loading || saving || !currentPassword || newPassword.length < 8} className="mt-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
             {saving ? "Updating..." : "Update password"}
           </button>
         </form>
       </SectionCard>
 
-      <SectionCard title="Two-factor authentication" description="Add an extra layer of security to your account.">
-        <Toggle checked={false} onChange={() => {}} label="Enable two-factor authentication" />
-      </SectionCard>
+      <SectionCard title="Two-factor authentication" description="Two-factor authentication is not available yet." />
 
       <SectionCard title="Danger zone">
         <div className="flex items-center justify-between">
@@ -84,9 +87,7 @@ export default function AccountPanel() {
             <p className="text-sm text-white">Delete account</p>
             <p className="text-xs text-neutral-500 mt-0.5">This can't be undone.</p>
           </div>
-          <button type="button" className="text-sm border border-red-400/40 text-red-400 hover:bg-red-400/10 rounded-lg px-4 py-2 transition-colors">
-            Delete account
-          </button>
+          <p className="text-sm text-neutral-500">Contact support to delete your account.</p>
         </div>
       </SectionCard>
     </div>

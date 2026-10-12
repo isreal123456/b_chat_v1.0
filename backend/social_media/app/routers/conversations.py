@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -62,14 +62,20 @@ async def get_conversations(
 			.limit(1)
 		)
 		latest = message_result.scalar_one_or_none()
+		unread_result = await db.execute(
+			select(func.count(Message.id)).where(
+				Message.sender_id == friend_id,
+				Message.receiver_id == current_user.id,
+				Message.is_read.is_(False),
+			)
+		)
 		conversations.append({
 			"id": user.id,
-			"name": user.username,
+			"name": user.display_name or user.username,
 			"username": user.username,
 			"lastMessage": latest.content if latest else "Start a conversation",
 			"time": latest.created_at.isoformat() if latest else None,
-			"unread": 0,
-			"online": False,
+			"unread": unread_result.scalar_one(),
 		})
 
 	return conversations

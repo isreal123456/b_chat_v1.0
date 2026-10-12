@@ -6,11 +6,36 @@ from app.database.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.models.profile_image import ProfileImage
+from app.models.user_preferences import UserPreferences
+from app.schemas.preferences import PreferencesRead, PreferencesUpdate
 from app.schemas.user import PasswordUpdate, UserUpdate
 from app.core.security import hash_password, verify_password
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+@router.get("/me/preferences", response_model=PreferencesRead)
+async def get_preferences(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+	prefs = await db.get(UserPreferences, current_user.id)
+	if prefs is None:
+		prefs = UserPreferences(user_id=current_user.id)
+		db.add(prefs)
+		await db.commit()
+		await db.refresh(prefs)
+	return prefs
+
+
+@router.put("/me/preferences", response_model=PreferencesRead)
+async def update_preferences(data: PreferencesUpdate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+	prefs = await db.get(UserPreferences, current_user.id)
+	if prefs is None:
+		prefs = UserPreferences(user_id=current_user.id)
+		db.add(prefs)
+	for key, value in data.model_dump().items():
+		setattr(prefs, key, value)
+	await db.commit()
+	await db.refresh(prefs)
+	return prefs
 
 
 def serialize_user(user: User) -> dict:
@@ -18,7 +43,8 @@ def serialize_user(user: User) -> dict:
 		"id": user.id,
 		"username": user.username,
 		"email": user.email,
-		"name": user.username,
+		"name": user.display_name or user.username,
+		"bio": user.bio or "",
 		"avatar_url": f"/users/{user.id}/avatar",
 	}
 
@@ -33,11 +59,12 @@ async def search_users(
 	if query.strip():
 		pattern = f"%{query.strip()}%"
 		statement = statement.where(
-			or_(User.username.ilike(pattern), User.email.ilike(pattern))
+			or_(User.username.ilike(pattern), User.display_name.ilike(pattern))
 		)
 
 	result = await db.execute(statement.order_by(User.username).limit(20))
-	return [serialize_user(user) for user in result.scalars().all()]
+	return [{key: value for key, value in serialize_user(user).items() if key != "email"}
+		for user in result.scalars().all()]
 
 
 @router.get("/me")
@@ -58,6 +85,8 @@ async def update_me(
 		raise HTTPException(status_code=409, detail="Username already registered")
 
 	current_user.username = user_data.username.strip()
+	current_user.display_name = user_data.name.strip()
+	current_user.bio = user_data.bio.strip()
 	try:
 		await db.commit()
 	except IntegrityError:
@@ -65,8 +94,6 @@ async def update_me(
 		raise HTTPException(status_code=409, detail="Username already registered")
 	await db.refresh(current_user)
 	return serialize_user(current_user)
-
-
 @router.patch("/me/password", status_code=204)
 async def update_password(
 	password_data: PasswordUpdate,
@@ -93,6 +120,14 @@ async def upload_avatar(
 	data = await image.read(5 * 1024 * 1024 + 1)
 	if len(data) > 5 * 1024 * 1024:
 		raise HTTPException(status_code=413, detail="Profile image must be 5 MB or smaller")
+	valid_signatures = {
+		"image/jpeg": data.startswith(b"\xff\xd8\xff"),
+		"image/png": data.startswith(b"\x89PNG\r\n\x1a\n"),
+		"image/gif": data.startswith((b"GIF87a", b"GIF89a")),
+		"image/webp": len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP",
+	}
+	if not valid_signatures[image.content_type]:
+		raise HTTPException(status_code=415, detail="The uploaded file content does not match its image type")
 
 	profile_image = await db.get(ProfileImage, current_user.id)
 	if profile_image is None:
@@ -139,4 +174,4 @@ async def get_user_by_username(
 	user = result.scalar_one_or_none()
 	if user is None:
 		raise HTTPException(status_code=404, detail="User not found")
-	return serialize_user(user)
+	return {key: value for key, value in serialize_user(user).items() if key != "email"}

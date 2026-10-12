@@ -2,9 +2,10 @@ import math
 from datetime import datetime, timezone
 
 
-ENGAGEMENT_WEIGHT = 0.40
-RECENCY_WEIGHT = 0.30
-FOLLOW_WEIGHT = 0.30
+ENGAGEMENT_WEIGHT = 0.30
+RECENCY_WEIGHT = 0.48
+FOLLOW_WEIGHT = 0.17
+OWN_POST_WEIGHT = 0.05
 
 
 def calculate_engagement(
@@ -65,21 +66,14 @@ def calculate_post_score(
     engagement: float,
     recency: float,
     is_followed: bool,
+    is_own_post: bool = False,
 ) -> float:
-
-    engagement_score = 1 - math.exp(
-        -max(engagement, 0.0)
-    )
-
-    recency_score = min(
-        max(recency, 0.0),
-        1.0
-    )
-
-    follow_score = 1.0 if is_followed else 0.0
+    engagement_score = 1 - math.exp(-max(engagement, 0.0) / 3)
+    recency_score = min(max(recency, 0.0), 1.0)
 
     return (
         engagement_score * ENGAGEMENT_WEIGHT
         + recency_score * RECENCY_WEIGHT
-        + follow_score * FOLLOW_WEIGHT
+        + (1.0 if is_followed else 0.0) * FOLLOW_WEIGHT
+        + (1.0 if is_own_post else 0.0) * OWN_POST_WEIGHT
     )

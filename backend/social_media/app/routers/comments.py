@@ -8,6 +8,9 @@ from app.models.post import Post
 from app.schemas.comment import CommentCreate, CommentResponse
 from app.models.user import User
 from app.dependencies import get_current_user
+from app.services.post_access import get_visible_post
+from app.services.notification_service import create_notification
+from app.services.feed_cache import invalidate_feed_cache
 
 router = APIRouter(prefix="/comments", tags=["comments"])
 
@@ -17,24 +20,30 @@ async def create_comment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if await db.get(Post, comment_data.post_id) is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    post = await get_visible_post(comment_data.post_id, current_user, db)
 
+    author_name = current_user.display_name or current_user.username
     comment = Comment(
         content=comment_data.content,
         user_id=current_user.id,
         post_id=comment_data.post_id
     )
     db.add(comment)
+    await create_notification(
+        db, recipient_id=post.user_id, sender_id=current_user.id,
+        kind="comment", message=f"{author_name} commented on your post",
+        post_id=post.id,
+    )
     await db.commit()
     await db.refresh(comment)
+    await invalidate_feed_cache(current_user.id)
 
     return {
         "id": comment.id,
         "post_id": comment.post_id,
         "content": comment.content,
         "user_id": comment.user_id,
-        "author": current_user.username,
+        "author": author_name,
     }
 
 
@@ -45,25 +54,25 @@ async def get_comment(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Comment, User.username)
+        select(Comment, User.display_name, User.username)
         .join(User, User.id == Comment.user_id)
         .where(Comment.id == comment_id)
     )
-    comment = result.scalar_one_or_none()
-
-    if not comment:
+    row = result.one_or_none()
+    if row is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Comment not found"
         )
 
-    comment, author = result.one()
+    comment, display_name, username = row
+    await get_visible_post(comment.post_id, current_user, db)
     return {
         "id": comment.id,
         "post_id": comment.post_id,
         "content": comment.content,
         "user_id": comment.user_id,
-        "author": author,
+        "author": display_name or username,
     }
 
 @router.delete("/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -85,6 +94,7 @@ async def delete_comment(
 
     await db.delete(comment)
     await db.commit()
+    await invalidate_feed_cache(current_user.id)
 
 @router.get("/posts/{post_id}/comments", response_model=list[CommentResponse])
 async def get_comments_for_post(
@@ -92,8 +102,9 @@ async def get_comments_for_post(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    await get_visible_post(post_id, current_user, db)
     result = await db.execute(
-        select(Comment, User.username)
+        select(Comment, User.display_name, User.username)
         .join(User, User.id == Comment.user_id)
         .where(Comment.post_id == post_id)
         .order_by(Comment.id)
@@ -106,7 +117,7 @@ async def get_comments_for_post(
             "post_id": comment.post_id,
             "content": comment.content,
             "user_id": comment.user_id,
-            "author": author,
+            "author": display_name or username,
         }
-        for comment, author in comments
+        for comment, display_name, username in comments
     ]

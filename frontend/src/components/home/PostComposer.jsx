@@ -1,19 +1,52 @@
 "use client";
 
-import { useState } from "react";
-import { Send } from "lucide-react";
+import { ImagePlus, Send, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { api, getMediaUrl } from "../../lib/api";
 
 export default function PostComposer({ onPostCreated }) {
+  const [profile, setProfile] = useState(null);
+  useEffect(() => { api("/users/me").then(setProfile).catch(() => setProfile(null)); }, []);
   const [text, setText] = useState("");
+  const [attachment, setAttachment] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!attachment) {
+      setImagePreview("");
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(attachment);
+    setImagePreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [attachment]);
+
+  const handleImageChange = (event) => {
+    const selected = event.target.files?.[0] || null;
+    event.target.value = "";
+    setError("");
+    if (!selected) return;
+    const isImage = ["image/jpeg", "image/png", "image/webp", "image/gif"].includes(selected.type);
+    const isVideo = ["video/mp4", "video/webm"].includes(selected.type);
+    if (!isImage && !isVideo) {
+      setError("Choose a JPEG, PNG, WebP, GIF, MP4, or WebM file.");
+      return;
+    }
+    if (selected.size > (isVideo ? 25 : 5) * 1024 * 1024) {
+      setError(isVideo ? "Videos must be 25 MB or smaller." : "Images must be 5 MB or smaller.");
+      return;
+    }
+    setAttachment(selected);
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     const content = text.trim();
 
-    if (!content) {
-      setError("Write something before posting.");
+    if (!content && !attachment) {
+      setError("Write something or add a photo or video before posting.");
       return;
     }
 
@@ -21,8 +54,9 @@ export default function PostComposer({ onPostCreated }) {
     setSubmitting(true);
 
     try {
-      await onPostCreated(content);
+      await onPostCreated(content, attachment);
       setText("");
+      setAttachment(null);
     } catch (requestError) {
       setError(requestError.message || "Could not create the post.");
     } finally {
@@ -31,30 +65,56 @@ export default function PostComposer({ onPostCreated }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-neutral-800 border border-neutral-700 rounded-2xl p-4">
-      <div className="flex items-center gap-3">
-      <img
-        src="https://i.pravatar.cc/100?img=68"
-        alt="You"
-        className="w-10 h-10 rounded-lg object-cover shrink-0"
-      />
-      <input
-        type="text"
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="Tell your friends about your thoughts.."
-        className="flex-1 bg-neutral-900 text-neutral-300 placeholder-neutral-500 rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-      />
-      <button
-        type="submit"
-        disabled={submitting}
-        className="flex items-center gap-2 rounded-lg bg-yellow-400 px-3 py-2.5 text-sm font-semibold text-neutral-900 transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-60 shrink-0"
-      >
-        <Send size={16} />
-        {submitting ? "Posting..." : "Post"}
-      </button>
+    <form onSubmit={handleSubmit} className="feed-composer">
+      <div className="feed-composer-prompt">
+        <img
+          src={profile?.avatar_url ? getMediaUrl(profile.avatar_url) : "/avatar-placeholder.svg"}
+          onError={(event) => { event.currentTarget.src = "/avatar-placeholder.svg"; }}
+          alt="Your profile"
+          className="feed-composer-avatar"
+        />
+        <div className="feed-composer-field">
+          <label htmlFor="post-content">Share something with your community</label>
+          <textarea
+            id="post-content"
+            aria-label="Write a post"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="What is on your mind?"
+            maxLength={5000}
+            rows={2}
+          />
+        </div>
       </div>
-      {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+      {imagePreview && attachment && (
+        <div className="post-image-preview">
+          {attachment.type.startsWith("video/")
+            ? <video src={imagePreview} aria-label="Selected video preview" muted playsInline controls />
+            : <img src={imagePreview} alt="Selected post attachment preview" />}
+          <button type="button" onClick={() => setAttachment(null)} aria-label="Remove selected attachment" title="Remove attachment">
+            <X size={16} />
+          </button>
+          <span>{attachment.name}</span>
+        </div>
+      )}
+      <div className="feed-composer-footer">
+        <input id="post-media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" onChange={handleImageChange} className="sr-only" />
+        <label htmlFor="post-media" title="Add a photo or video" className="feed-attach-button">
+          <ImagePlus size={17} aria-hidden="true" />
+          <span>Add photo or video</span>
+        </label>
+        <div className="feed-composer-submit">
+          <span>{text.length}/5000</span>
+          <button
+            type="submit"
+            disabled={submitting || (!text.trim() && !attachment)}
+          >
+            <Send size={15} aria-hidden="true" />
+            {submitting ? "Posting..." : "Post"}
+          </button>
+        </div>
+      </div>
+      {error && <p role="alert" className="feed-composer-error">{error}</p>}
     </form>
   );
 }
