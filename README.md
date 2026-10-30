@@ -39,6 +39,22 @@ what you ship, find collaborators, and message your network in real time.
 
 ## Getting started
 
+### Deploy to Render
+
+This repository includes a [`render.yaml`](./render.yaml) Blueprint that
+creates the FastAPI API and Vite frontend as separate Render services.
+
+1. Push the repository to GitHub.
+2. In Render, choose **New → Blueprint** and select this repository.
+3. Before the first deploy finishes, set `DATABASE_URL` on `tickme-api` to the
+   private Neon connection string.
+4. Render runs the Alembic migrations during API startup and publishes the
+   frontend after its build.
+
+The Blueprint generates `SECRET_KEY` and `MESSAGE_ENCRYPTION_KEY` values and
+connects the frontend to the API automatically. Keep the Neon connection
+string and other secrets in Render environment variables, not in Git.
+
 ### Backend
 
 ```bash

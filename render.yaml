@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: tickme-api
+    runtime: python
+    rootDir: backend/social_media
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MESSAGE_ENCRYPTION_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: tickme-web
+          property: host
+          prefix: https://
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: tickme-web
+          property: host
+          prefix: https://
+      - key: DEBUG
+        value: "false"
+      - key: REDIS_URL
+        value: ""
+
+  - type: web
+    name: tickme-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: tickme-api
+          property: host
+          prefix: https://
