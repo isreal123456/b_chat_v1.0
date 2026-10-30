@@ -21,6 +21,25 @@ Feed responses can use Redis when `REDIS_URL` points to a running Redis instance
 
 The domain models, routers, services, and tests are organized by responsibility and ready for feature implementation. Database access is async SQLAlchemy, configured through `.env`.
 
+## Use Neon PostgreSQL
+
+Copy the Neon connection string into `backend/social_media/.env` as
+`DATABASE_URL`. The standard Neon URL (`postgresql://...?...sslmode=require`)
+is normalized automatically for the async PostgreSQL driver:
+
+```dotenv
+DATABASE_URL=postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+```
+
+Keep the connection string private and do not commit `.env`. Apply the schema
+to the Neon database before starting the API:
+
+```powershell
+cd backend/social_media
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
 ## Admin console
 
 Administrative routes live under `/admin` and are guarded by the role matrix in `app/core/permissions.py`:

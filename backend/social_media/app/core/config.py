@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -44,6 +45,30 @@ class Settings(BaseSettings):
         if isinstance(value, str) and value.strip().lower() in {"development", "dev"}:
             return True
         return value
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value):
+        if not isinstance(value, str) or not value:
+            return value
+
+        if value.startswith("postgres://"):
+            value = "postgresql://" + value[len("postgres://"):]
+        if not value.startswith("postgresql://"):
+            return value
+
+        parsed = urlsplit(value)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        if query.pop("sslmode", None) == "require":
+            query["ssl"] = "require"
+
+        return urlunsplit((
+            "postgresql+asyncpg",
+            parsed.netloc,
+            parsed.path,
+            urlencode(query),
+            parsed.fragment,
+        ))
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
