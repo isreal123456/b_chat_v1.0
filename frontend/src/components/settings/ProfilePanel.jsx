@@ -1,135 +1,179 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { Camera } from "lucide-react";
+import { useRef, useState } from "react";
+import { Camera, Trash2 } from "lucide-react";
 import Field from "./Field";
 import SectionCard from "./SectionCard";
+import Toggle from "./Toggle";
+import Avatar from "../ui/Avatar";
+import SkillsInput from "../profile/SkillsInput";
 import { api, getMediaUrl } from "../../lib/api";
+import { useAuth } from "../../providers/AuthProvider";
+import { CATEGORIES } from "../../lib/profile";
 
 export default function ProfilePanel() {
+  const { user, updateUser } = useAuth();
+  const fileRef = useRef(null);
   const [form, setForm] = useState({
-    name: "",
-    username: "",
-    bio: "",
-    avatar_url: "",
+    name: user?.name || "",
+    username: user?.username || "",
+    bio: user?.bio || "",
+    headline: user?.headline || "",
+    category: user?.category || "",
+    skills: user?.skills || [],
+    github_url: user?.github_url || "",
+    portfolio_url: user?.portfolio_url || "",
+    linkedin_url: user?.linkedin_url || "",
+    location: user?.location || "",
+    available_for_work: Boolean(user?.available_for_work),
   });
-  const [status, setStatus] = useState("");
+  const [avatar, setAvatar] = useState(user?.avatar_url || "");
+  const [avatarVersion, setAvatarVersion] = useState("");
+  const [status, setStatus] = useState({ type: "", message: "" });
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
 
-  useEffect(() => {
-    api("/users/me").then((user) => {
-      setForm((current) => ({
-        ...current,
-        name: user.name || user.username,
-        username: user.username,
-        bio: user.bio || "",
-        avatar_url: user.avatar_url,
-      }));
-    }).catch((error) => setLoadError(error.message || "Could not load your profile settings."))
-      .finally(() => setLoading(false));
-  }, []);
+  const notify = (type, message) => setStatus({ type, message });
 
-  const handleChange = (e) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setForm((current) => ({ ...current, [name]: value }));
+  };
 
   const handleAvatar = async (event) => {
     const image = event.target.files?.[0];
     if (!image) return;
-    setStatus("");
+    notify("", "");
     const body = new FormData();
     body.append("image", image);
     try {
       const result = await api("/users/me/avatar", { method: "POST", body });
-      setForm((current) => ({ ...current, avatar_url: result.avatar_url }));
-      setStatus("Profile picture updated.");
+      setAvatar(result.avatar_url);
+      setAvatarVersion(String(Date.now()));
+      updateUser({ avatar_url: result.avatar_url });
+      notify("success", "Profile photo updated.");
     } catch (error) {
-      setStatus(error.message || "Could not upload profile picture.");
+      notify("error", error.message || "Could not upload profile picture.");
+    } finally {
+      event.target.value = "";
     }
   };
 
   const handleRemoveAvatar = async () => {
     try {
       await api("/users/me/avatar", { method: "DELETE" });
-      setForm((current) => ({ ...current, avatar_url: "" }));
-      setStatus("Profile picture removed.");
+      setAvatar("");
+      setAvatarVersion("");
+      updateUser({ avatar_url: "" });
+      notify("success", "Profile photo removed.");
     } catch (error) {
-      setStatus(error.message || "Could not remove profile picture.");
+      notify("error", error.message || "Could not remove profile picture.");
     }
   };
 
   const handleSave = async (event) => {
     event.preventDefault();
-    setStatus("");
+    notify("", "");
     setSaving(true);
     try {
-      const user = await api("/users/me", {
+      const saved = await api("/users/me", {
         method: "PATCH",
-        body: JSON.stringify({ username: form.username.trim(), name: form.name.trim(), bio: form.bio.trim() }),
+        body: JSON.stringify({
+          username: form.username.trim(),
+          name: form.name.trim(),
+          bio: form.bio.trim(),
+          headline: form.headline.trim(),
+          category: form.category,
+          skills: form.skills,
+          github_url: form.github_url.trim(),
+          portfolio_url: form.portfolio_url.trim(),
+          linkedin_url: form.linkedin_url.trim(),
+          location: form.location.trim(),
+          available_for_work: form.available_for_work,
+        }),
       });
-      setForm((current) => ({ ...current, username: user.username, name: user.name, bio: user.bio }));
-      setStatus("Profile saved.");
+      setForm((current) => ({
+        ...current,
+        name: saved.name,
+        username: saved.username,
+        bio: saved.bio,
+        headline: saved.headline,
+        category: saved.category,
+        skills: saved.skills,
+        github_url: saved.github_url,
+        portfolio_url: saved.portfolio_url,
+        linkedin_url: saved.linkedin_url,
+        location: saved.location,
+        available_for_work: saved.available_for_work,
+      }));
+      updateUser(saved);
+      notify("success", "Profile saved.");
     } catch (error) {
-      setStatus(error.message || "Could not save profile.");
+      notify("error", error.message || "Could not save profile.");
     } finally {
       setSaving(false);
     }
   };
 
+  const avatarSrc = avatar
+    ? `${getMediaUrl(avatar)}${avatarVersion ? `?v=${avatarVersion}` : ""}`
+    : "";
+
   return (
-    <form className="space-y-6" onSubmit={handleSave}>
-      <SectionCard title="Profile photo">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <img
-              src={form.avatar_url ? getMediaUrl(form.avatar_url) : "/avatar-placeholder.svg"}
-              onError={(event) => { event.currentTarget.src = "/avatar-placeholder.svg"; }}
-              alt="Profile"
-              className="w-20 h-20 rounded-2xl object-cover"
+    <form onSubmit={handleSave} className="settings-stack">
+      <SectionCard title="Profile photo" description="A clear photo or mark helps people recognise you across TickMe.">
+        <div className="settings-avatar">
+          <Avatar name={form.name || form.username} src={avatarSrc} size={76} />
+          <div className="settings-avatar__actions">
+            <input
+              ref={fileRef}
+              id="avatar-upload"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleAvatar}
+              className="sr-only"
             />
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileRef.current?.click()}>
+              <Camera size={15} aria-hidden="true" />
+              Upload new
+            </button>
             <button
               type="button"
-              onClick={() => document.getElementById("avatar-upload").click()}
-              aria-label="Choose profile picture"
-              className="absolute -bottom-1 -right-1 p-1.5 bg-yellow-400 rounded-lg text-neutral-900"
+              className="btn btn-ghost btn-sm"
+              onClick={handleRemoveAvatar}
+              disabled={!avatar}
             >
-              <Camera size={14} />
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <input id="avatar-upload" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleAvatar} className="sr-only" />
-            <label htmlFor="avatar-upload" className="cursor-pointer text-sm bg-neutral-700 hover:bg-neutral-600 text-white rounded-lg px-4 py-2 transition-colors">
-              Upload new
-            </label>
-            <button type="button" onClick={handleRemoveAvatar} className="text-sm text-neutral-400 hover:text-white rounded-lg px-4 py-2 transition-colors">
+              <Trash2 size={15} aria-hidden="true" />
               Remove
             </button>
           </div>
         </div>
+        <p className="hint">JPEG, PNG, WebP, or GIF up to 5 MB.</p>
       </SectionCard>
 
-      <SectionCard title="Basic info" description="This is how others will see you on the platform.">
-        <div className="space-y-4">
+      <SectionCard title="Basic info" description="This is how others see you on TickMe.">
+        <div className="form-stack">
           <Field label="Full name">
             <input
               type="text"
               name="name"
               value={form.name}
               onChange={handleChange}
-              className="w-full bg-neutral-900 text-white rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              className="input"
+              autoComplete="name"
+              required
             />
           </Field>
 
-          <Field label="Username">
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">@</span>
+          <Field label="Username" hint="Your handle appears in your profile URL.">
+            <div className="input-affix">
+              <span className="input-affix__text" aria-hidden="true">@</span>
               <input
                 type="text"
                 name="username"
                 value={form.username}
                 onChange={handleChange}
-                className="w-full bg-neutral-900 text-white rounded-lg pl-8 pr-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                className="input"
+                autoComplete="username"
+                spellCheck="false"
+                required
               />
             </div>
           </Field>
@@ -141,17 +185,111 @@ export default function ProfilePanel() {
               onChange={handleChange}
               maxLength={160}
               rows={3}
-              className="w-full bg-neutral-900 text-white rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 resize-none"
+              className="textarea"
+              placeholder="What do you build? What are you exploring?"
             />
           </Field>
         </div>
-
-        {loadError && <p role="alert" className="text-sm text-red-300">{loadError}</p>}
-        {status && <p role="status" className="mt-4 text-sm text-neutral-300">{status}</p>}
-        <button type="submit" disabled={loading || saving || !form.username.trim() || !form.name.trim()} className="mt-5 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
-          {loading ? "Loading…" : saving ? "Saving..." : "Save changes"}
-        </button>
       </SectionCard>
+
+      <SectionCard title="Professional profile" description="Give collaborators the context they need to reach out.">
+        <div className="form-stack">
+          <Field label="Focus">
+            <select name="category" value={form.category} onChange={handleChange} className="select">
+              <option value="">Choose a focus</option>
+              {CATEGORIES.map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Headline" hint="One line about what you build.">
+            <input
+              type="text"
+              name="headline"
+              value={form.headline}
+              onChange={handleChange}
+              className="input"
+              maxLength={120}
+              placeholder="Frontend engineer · design systems"
+            />
+          </Field>
+
+          <Field label="Skills">
+            <SkillsInput id="profile-skills" value={form.skills} onChange={(skills) => setForm((current) => ({ ...current, skills }))} />
+          </Field>
+
+          <Field label="GitHub">
+            <input
+              type="url"
+              name="github_url"
+              value={form.github_url}
+              onChange={handleChange}
+              className="input"
+              placeholder="https://github.com/your-handle"
+            />
+          </Field>
+
+          <Field label="Portfolio">
+            <input
+              type="url"
+              name="portfolio_url"
+              value={form.portfolio_url}
+              onChange={handleChange}
+              className="input"
+              placeholder="https://your-site.dev"
+            />
+          </Field>
+
+          <Field label="LinkedIn">
+            <input
+              type="url"
+              name="linkedin_url"
+              value={form.linkedin_url}
+              onChange={handleChange}
+              className="input"
+              placeholder="https://linkedin.com/in/you"
+            />
+          </Field>
+
+          <Field label="Location">
+            <input
+              type="text"
+              name="location"
+              value={form.location}
+              onChange={handleChange}
+              className="input"
+              maxLength={100}
+              placeholder="Berlin, remote"
+            />
+          </Field>
+
+          <Toggle
+            label="Open to work"
+            hint="Show a badge on your profile so collaborators know you are available."
+            checked={form.available_for_work}
+            onChange={(value) => setForm((current) => ({ ...current, available_for_work: value }))}
+          />
+        </div>
+      </SectionCard>
+
+      {status.message && (
+        <p role={status.type === "error" ? "alert" : "status"} className={`alert alert--${status.type}`}>
+          {status.message}
+        </p>
+      )}
+
+      <div className="form-actions">
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={saving || !form.username.trim() || !form.name.trim()}
+        >
+          {saving ? "Saving…" : "Save changes"}
+        </button>
+      </div>
     </form>
   );
 }

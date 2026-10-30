@@ -1,9 +1,6 @@
-"use client";
-
 import { useState } from "react";
-import { User, Bell, Lock, Shield } from "lucide-react";
-import TopNav from "../../components/ui/navbar";
-import SettingsNav from "../../components/ui/settingnav";
+import { Bell, Lock, Palette, Shield, UserRound } from "lucide-react";
+import AppShell from "../../components/layout/AppShell";
 import ProfilePanel from "../../components/settings/ProfilePanel";
 import AccountPanel from "../../components/settings/AccountPanel";
 import NotificationsPanel from "../../components/settings/NotificationsPanel";
@@ -11,10 +8,11 @@ import PrivacyPanel from "../../components/settings/PrivacyPanel";
 import AppearancePanel from "../../components/settings/AppearancePanel";
 
 const tabs = [
-  { id: "profile", label: "Profile", icon: User },
-  { id: "account", label: "Account & Security", icon: Lock },
+  { id: "profile", label: "Profile", icon: UserRound },
+  { id: "account", label: "Account & security", icon: Lock },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "privacy", label: "Privacy", icon: Shield },
+  { id: "appearance", label: "Appearance", icon: Palette },
 ];
 
 export default function SettingsPage() {
@@ -29,13 +27,25 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-900">
-      <TopNav />
+    <AppShell title="Settings" subtitle="Tune your profile, account, and workspace">
+      <div className="settings-layout">
+        <nav className="card settings-nav" aria-label="Settings sections">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActive(id)}
+              className={`settings-nav__item${active === id ? " is-active" : ""}`}
+              aria-current={active === id ? "page" : undefined}
+            >
+              <Icon size={17} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
+        </nav>
 
-      <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-[240px_1fr] gap-6 px-6 pb-10">
-        <SettingsNav active={active} onSelect={setActive} tabs={tabs} />
-        <div>{panels[active] || <ProfilePanel />}</div>
+        <div className="settings-stack">{panels[active]}</div>
       </div>
-    </div>
+    </AppShell>
   );
 }

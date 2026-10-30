@@ -1,0 +1,80 @@
+/* TickMe design tokens — "Terminal Lime" */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #090c0a;
+  --bg-soft: #0d110e;
+  --surface: #111613;
+  --surface-2: #171e19;
+  --surface-3: #1f2822;
+  --text: #f1f5ee;
+  --text-soft: #c5cec3;
+  --muted: #8b968c;
+  --line: rgba(241, 245, 238, 0.09);
+  --line-strong: rgba(241, 245, 238, 0.17);
+
+  --accent: #c8fa4b;
+  --accent-hover: #d9ff78;
+  --accent-ink: #0a0d08;
+  --accent-text: #c8fa4b;
+  --accent-soft: rgba(200, 250, 75, 0.12);
+  --accent-glow: rgba(200, 250, 75, 0.09);
+  --teal: #62e3c0;
+  --teal-soft: rgba(98, 227, 192, 0.12);
+  --danger: #ff7b72;
+  --danger-soft: rgba(255, 123, 114, 0.1);
+  --warning: #f3c45a;
+  --info: #7cc4ff;
+
+  --grid-dot: rgba(241, 245, 238, 0.055);
+  --shadow-sm: 0 6px 18px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 18px 44px rgba(0, 0, 0, 0.28);
+  --shadow-accent: 0 10px 30px rgba(200, 250, 75, 0.16);
+
+  --radius-xs: 8px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --font-display: "Space Grotesk", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  --nav-width: 264px;
+  --rail-width: 304px;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f3f5ee;
+  --bg-soft: #eaeee3;
+  --surface: #ffffff;
+  --surface-2: #f6f8f1;
+  --surface-3: #e7ecdf;
+  --text: #10150e;
+  --text-soft: #394336;
+  --muted: #6b7668;
+  --line: rgba(16, 21, 14, 0.1);
+  --line-strong: rgba(16, 21, 14, 0.2);
+
+  --accent: #b7ee35;
+  --accent-hover: #a8e226;
+  --accent-ink: #10150e;
+  --accent-text: #2f6b10;
+  --accent-soft: rgba(122, 170, 24, 0.13);
+  --accent-glow: rgba(183, 238, 53, 0.16);
+  --teal: #107866;
+  --teal-soft: rgba(16, 120, 102, 0.1);
+  --danger: #c33a30;
+  --danger-soft: rgba(195, 58, 48, 0.08);
+  --warning: #9a6a06;
+  --info: #1f6f9e;
+
+  --grid-dot: rgba(16, 21, 14, 0.07);
+  --shadow-sm: 0 4px 14px rgba(16, 21, 14, 0.06);
+  --shadow-md: 0 18px 40px rgba(16, 21, 14, 0.1);
+  --shadow-accent: 0 10px 26px rgba(150, 200, 40, 0.24);
+}

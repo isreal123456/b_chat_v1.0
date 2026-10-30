@@ -66,6 +66,8 @@ async def get_comment(
         )
 
     comment, display_name, username = row
+    if (comment.moderation_status or "published") != "published":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
     await get_visible_post(comment.post_id, current_user, db)
     return {
         "id": comment.id,
@@ -106,7 +108,10 @@ async def get_comments_for_post(
     result = await db.execute(
         select(Comment, User.display_name, User.username)
         .join(User, User.id == Comment.user_id)
-        .where(Comment.post_id == post_id)
+        .where(
+            Comment.post_id == post_id,
+            Comment.moderation_status == "published",
+        )
         .order_by(Comment.id)
     )
     comments = result.all()

@@ -1,313 +1,368 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Link } from "react-router-dom";
-import { Search, Send, MessageCircle, Circle } from "lucide-react";
-import TopNav from "../../components/ui/navbar";
-import { API_BASE_URL, api, fetchConversations, getAccessToken } from "../../lib/api";
+import { Link, useSearchParams } from "react-router-dom";
+import { Circle, MessageCircle, Search, Send } from "lucide-react";
 
-// ---- Small building blocks ----
+import AppShell from "../../components/layout/AppShell";
+import Avatar from "../../components/ui/Avatar";
+import { API_BASE_URL, api, fetchConversations, getAccessToken, getMediaUrl } from "../../lib/api";
+import { useAuth } from "../../providers/AuthProvider";
 
+function formatTime(value, style = "short") {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  if (style === "clock") {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
-
-function ConversationList({ conversations, activeId, onSelect }) {
+function Conversations({ conversations, activeId, onSelect, loading }) {
   const [query, setQuery] = useState("");
-  const filteredConversations = conversations.filter((conversation) =>
-    conversation.name.toLowerCase().includes(query.trim().toLowerCase())
+  const term = query.trim().toLowerCase();
+  const filtered = conversations.filter((conversation) =>
+    `${conversation.name} ${conversation.username}`.toLowerCase().includes(term),
   );
 
   return (
-    <div className="bg-neutral-800 border border-neutral-700 rounded-2xl overflow-hidden flex flex-col h-full">
-      <div className="p-5 border-b border-neutral-700">
-        <div className="flex items-center justify-between mb-4">
+    <section className="card conversation-panel" aria-label="Conversations">
+      <div className="conversation-panel__head">
+        <div className="row" style={{ justifyContent: "space-between", marginBottom: "0.6rem" }}>
           <div>
-            <p className="text-xs uppercase tracking-widest text-yellow-400">Inbox</p>
-            <h2 className="text-white text-lg font-semibold">Messages</h2>
+            <p className="eyebrow">Inbox</p>
+            <h1 className="card__title">Messages</h1>
           </div>
-          <span className="rounded-full bg-neutral-700 px-2.5 py-1 text-xs text-neutral-300">
-            {conversations.length}
-          </span>
+          <span className="badge badge--neutral">{conversations.length}</span>
         </div>
-        <div className="relative">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+        <div className="feed-search">
+          <Search size={15} aria-hidden="true" />
+          <label htmlFor="conversation-search" className="sr-only">Search conversations</label>
           <input
-            type="text"
+            id="conversation-search"
+            type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search conversations"
-            aria-label="Search conversations"
-            className="w-full bg-neutral-900 text-neutral-300 placeholder-neutral-500 rounded-lg pl-9 pr-3 py-2 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            autoComplete="off"
           />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {filteredConversations.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-neutral-500">
-            {conversations.length === 0 ? "No conversations yet." : "No matches found."}
-          </p>
-        ) : filteredConversations.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onSelect(c.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
-              activeId === c.id ? "bg-neutral-700/60" : "hover:bg-neutral-700/30"
-            }`}
-          >
-            <div className="relative shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-yellow-400 font-semibold text-neutral-900">
-              {c.name.charAt(0).toUpperCase()}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <p className="text-white text-sm font-medium truncate">{c.name}</p>
-                <span className="text-neutral-500 text-xs shrink-0">{c.time ? new Date(c.time).toLocaleDateString() : ""}</span>
-              </div>
-              <p className="text-neutral-500 text-xs truncate">{c.lastMessage}</p>
-            </div>
-
-            {c.unread > 0 && (
-              <span className="shrink-0 w-5 h-5 flex items-center justify-center bg-yellow-400 text-neutral-900 text-[11px] font-semibold rounded-full">
-                {c.unread}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ChatWindow({ conversation, thread, onSend, connected }) {
-  const [draft, setDraft] = useState("");
-
-  if (!conversation) {
-    return (
-      <div className="bg-neutral-800 border border-neutral-700 rounded-2xl flex min-h-[420px] flex-col items-center justify-center px-6 text-center">
-        <MessageCircle size={32} className="mb-3 text-yellow-400" />
-        <p className="text-white font-semibold">Your inbox is ready</p>
-        <p className="mt-1 max-w-xs text-sm text-neutral-500">Add a friend from Explore to start a private conversation.</p>
-        <Link to="/explore" className="mt-5 rounded-lg bg-yellow-400 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-yellow-300">
-          Find people
-        </Link>
-      </div>
-    );
-  }
-
-  const handleSend = (e) => {
-    e.preventDefault();
-    if (!draft.trim()) return;
-    if (onSend(conversation.id, draft.trim())) setDraft("");
-  };
-
-  return (
-    <div className="bg-neutral-800 border border-neutral-700 rounded-2xl flex min-h-[560px] flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-700">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-400 font-semibold text-neutral-900">
-          {conversation.name.charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-white text-sm font-medium">{conversation.name}</p>
-          <p className="flex items-center gap-1.5 text-xs text-neutral-500">
-            <Circle size={7} fill={connected ? "currentColor" : "none"} className={connected ? "text-emerald-400" : "text-neutral-600"} />
-            {connected ? "Ready to chat" : "Connecting..."}
-          </p>
-        </div>
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto bg-neutral-900/30 px-5 py-5 space-y-3">
-        {thread.length === 0 ? (
-            <p className="text-neutral-500 text-sm text-center mt-10">
-            No messages yet. Say hello.
+      <div className="conversation-list">
+        {loading ? (
+          <p className="muted" style={{ padding: "1rem", fontSize: "0.82rem" }} role="status">Loading conversations…</p>
+        ) : filtered.length === 0 ? (
+          <p className="muted" style={{ padding: "1rem", fontSize: "0.82rem", textAlign: "center" }}>
+            {conversations.length === 0 ? "No conversations yet. Connect with someone to start one." : "No matches."}
           </p>
         ) : (
-          thread.map((m) => (
-            <div key={m.id} className={`flex ${m.from === "me" ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
-                  m.from === "me"
-                    ? "bg-yellow-400 text-neutral-900 rounded-br-sm"
-                    : "bg-neutral-700 text-neutral-200 rounded-bl-sm"
-                }`}
-              >
-                <p>{m.text}</p>
-                <p className={`text-[10px] mt-1 ${m.from === "me" ? "text-neutral-800/70" : "text-neutral-400"}`}>
-                  {m.time}
-                </p>
-              </div>
-            </div>
+          filtered.map((conversation) => (
+            <button
+              key={conversation.id}
+              type="button"
+              onClick={() => onSelect(conversation.id)}
+              className={`conversation-item${activeId === conversation.id ? " is-active" : ""}`}
+            >
+              <Avatar name={conversation.name} src={getMediaUrl(conversation.avatar_url)} size={42} />
+              <span className="conversation-item__copy">
+                <span className="conversation-item__top">
+                  <span className="conversation-item__name">
+                    {conversation.name}
+                    {conversation.online && (
+                      <span className="conversation-item__online" title="Online" aria-label="Online" />
+                    )}
+                  </span>
+                  <span className="conversation-item__time">{formatTime(conversation.time)}</span>
+                </span>
+                <span className="conversation-item__preview">{conversation.lastMessage}</span>
+              </span>
+              {conversation.unread > 0 && <span className="unread-count">{conversation.unread}</span>}
+            </button>
           ))
         )}
       </div>
-
-      {/* Composer */}
-      <form onSubmit={handleSend} className="flex items-center gap-2 px-4 py-4 border-t border-neutral-700">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="Write a message..."
-          maxLength={5000}
-          disabled={!connected}
-          aria-label="Write a message"
-          className="flex-1 bg-neutral-900 text-neutral-300 placeholder-neutral-500 rounded-full px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-        />
-        <button
-          type="submit"
-          disabled={!connected}
-          aria-label="Send message"
-          className="p-2.5 bg-yellow-400 hover:bg-yellow-300 text-neutral-900 rounded-full transition-colors shrink-0"
-        >
-          <Send size={16} />
-        </button>
-      </form>
-    </div>
+    </section>
   );
 }
 
-// ---- Page ----
-
 export default function MessagesPage() {
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
   const [threads, setThreads] = useState({});
-  const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const activeConversation = conversations.find((c) => c.id === activeId);
+  const socketRef = useRef(null);
+  const scrollRef = useRef(null);
+  const activeIdRef = useRef(null);
 
   useEffect(() => {
-    fetchConversations().then((data) => {
-      setConversations(data);
-      const requestedId = Number(searchParams.get("user"));
-      setActiveId((current) => (data.some((conversation) => conversation.id === requestedId) ? requestedId : current || data[0]?.id) || null);
-    }).catch((requestError) => {
-      setError(requestError.message || "Could not load conversations.");
-    }).finally(() => setLoading(false));
-  }, [searchParams]);
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  const currentUserId = user?.id;
+  const activeConversation = conversations.find((conversation) => conversation.id === activeId);
+  const thread = threads[activeId] || [];
 
   useEffect(() => {
     let active = true;
-    api("/users/me")
-      .then((user) => {
-        if (active) setCurrentUserId(user.id);
+    fetchConversations()
+      .then((data) => {
+        if (!active) return;
+        setConversations(data);
+        const requestedId = Number(searchParams.get("user"));
+        const requested = data.some((conversation) => conversation.id === requestedId);
+        setActiveId((current) => (requested ? requestedId : current || data[0]?.id || null));
       })
       .catch((requestError) => {
-        if (active) setError(requestError.message || "Could not load your profile.");
+        if (active) setError(requestError.message || "Could not load conversations.");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
       });
-
     return () => {
       active = false;
     };
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!currentUserId) return undefined;
+    const interval = setInterval(() => {
+      fetchConversations()
+        .then((data) => {
+          setConversations((current) => {
+            const byId = new Map(current.map((conversation) => [conversation.id, conversation]));
+            return data.map((conversation) => {
+              const existing = byId.get(conversation.id);
+              if (!existing) return conversation;
+              return {
+                ...existing,
+                ...conversation,
+                unread: activeIdRef.current === conversation.id ? 0 : conversation.unread,
+              };
+            });
+          });
+        })
+        .catch(() => {});
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [currentUserId]);
 
+  useEffect(() => {
+    if (!currentUserId) return undefined;
     const token = getAccessToken();
     if (!token) return undefined;
 
-    const websocketUrl = API_BASE_URL.replace(/^http/, "ws") +
-      `/messages/ws/${currentUserId}?token=${encodeURIComponent(token)}`;
-    const nextSocket = new WebSocket(websocketUrl);
-    socketRef.current = nextSocket;
-    nextSocket.onopen = () => setConnected(true);
-    nextSocket.onclose = () => setConnected(false);
-    nextSocket.onerror = () => {
+    const socketUrl = `${API_BASE_URL.replace(/^http/, "ws")}/messages/ws/${currentUserId}?token=${encodeURIComponent(token)}`;
+    const socket = new WebSocket(socketUrl);
+    socketRef.current = socket;
+    let disposed = false;
+
+    socket.onopen = () => {
+      if (disposed) return;
+      setConnected(true);
+      setError("");
+    };
+    socket.onclose = () => {
+      if (disposed) return;
+      setConnected(false);
+    };
+    socket.onerror = () => {
+      if (disposed) return;
       setConnected(false);
       setError("Message connection unavailable. Check that the API is running.");
     };
-    nextSocket.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (disposed) return;
       let message;
-      try { message = JSON.parse(event.data); }
-      catch { setError("Received an unreadable message from the server."); return; }
+      try {
+        message = JSON.parse(event.data);
+      } catch {
+        setError("Received an unreadable message from the server.");
+        return;
+      }
       if (message.error) {
         setError(message.error);
         return;
       }
       if (!message.content) return;
-      const conversationId = message.sender_id === currentUserId
-        ? message.receiver_id
-        : message.sender_id;
+
+      const otherId = message.sender_id === currentUserId ? message.receiver_id : message.sender_id;
       setThreads((current) => ({
         ...current,
-        [conversationId]: [
-          ...(current[conversationId] || []),
-          { id: message.id, from: message.sender_id === currentUserId ? "me" : "them", text: message.content, time: new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) },
+        [otherId]: [
+          ...(current[otherId] || []),
+          {
+            id: message.id,
+            from: message.sender_id === currentUserId ? "me" : "them",
+            text: message.content,
+            time: formatTime(message.created_at, "clock"),
+          },
         ],
       }));
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === otherId
+            ? {
+                ...conversation,
+                lastMessage: message.content,
+                time: message.created_at,
+                unread:
+                  message.sender_id !== currentUserId && activeIdRef.current !== otherId
+                    ? (conversation.unread || 0) + 1
+                    : 0,
+              }
+            : conversation,
+        ),
+      );
     };
 
     return () => {
-      nextSocket.close();
+      disposed = true;
+      socket.close();
       socketRef.current = null;
     };
   }, [currentUserId]);
 
   useEffect(() => {
-    if (!currentUserId || !activeId) return;
+    if (!currentUserId || !activeId) return undefined;
     let active = true;
     api(`/messages/${activeId}/history`)
-      .then((messages) => { if (!active) return; setThreads((current) => ({
-        ...current,
-        [activeId]: [...new Map([
-          ...(current[activeId] || []),
-          ...messages.map((message) => ({
-          id: message.id,
-          from: message.sender_id === currentUserId ? "me" : "them",
-          text: message.content,
-          time: new Date(message.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          })),
-        ].map((message) => [message.id, message])).values()].sort((a, b) => a.id - b.id),
-      })); })
-      .catch((requestError) => { if (active) setError(requestError.message || "Could not load message history."); });
-    return () => { active = false; };
+      .then((messages) => {
+        if (!active) return;
+        setThreads((current) => {
+          const merged = new Map((current[activeId] || []).map((message) => [message.id, message]));
+          messages.forEach((message) => {
+            merged.set(message.id, {
+              id: message.id,
+              from: message.sender_id === currentUserId ? "me" : "them",
+              text: message.content,
+              time: formatTime(message.created_at, "clock"),
+            });
+          });
+          return { ...current, [activeId]: [...merged.values()].sort((a, b) => a.id - b.id) };
+        });
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === activeId ? { ...conversation, unread: 0 } : conversation,
+          ),
+        );
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message || "Could not load message history.");
+      });
+    return () => {
+      active = false;
+    };
   }, [activeId, currentUserId]);
 
-  const sendMessage = (receiverId, content) => {
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [thread.length, activeId]);
+
+  const sendMessage = (event) => {
+    event.preventDefault();
+    const draft = event.currentTarget.elements.message.value.trim();
+    if (!draft) return;
     if (!socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
       setError("Message connection unavailable. Try again in a moment.");
       return;
     }
-    socketRef.current.send(JSON.stringify({ receiver_id: receiverId, content }));
+    socketRef.current.send(JSON.stringify({ receiver_id: activeId, content: draft }));
+    event.currentTarget.elements.message.value = "";
     setError("");
-    return true;
   };
 
   return (
-    <div className="min-h-screen bg-neutral-900 flex flex-col">
-      <TopNav />
+    <AppShell title="Messages" subtitle="Private threads">
+      <div className="page-enter">
+        {error && <div className="alert alert--error" role="alert" style={{ marginBottom: "0.8rem" }}>{error}</div>}
+        <div className="messages-layout">
+          <Conversations
+            conversations={conversations}
+            activeId={activeId}
+            onSelect={setActiveId}
+            loading={loading}
+          />
 
-      <div className="max-w-7xl mx-auto w-full flex-1 px-6 pb-6">
-        {error && (
-          <p role="alert" className="mb-4 rounded-lg border border-red-900/60 bg-red-950/30 p-3 text-sm text-red-300">
-            {error}
-          </p>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 min-h-[calc(100vh-120px)] md:h-[calc(100vh-120px)]">
-          {loading ? (
-            <div className="rounded-2xl border border-neutral-700 bg-neutral-800 p-6 text-sm text-neutral-400">
-              Loading conversations...
-            </div>
-          ) : (
-            <>
-              <ConversationList conversations={conversations} activeId={activeId} onSelect={setActiveId} />
-              <ChatWindow
-                conversation={activeConversation}
-                thread={threads[activeId] || []}
-                onSend={sendMessage}
-                connected={connected}
-              />
-            </>
-          )}
+          <section className="card chat-panel" aria-label="Conversation">
+            {activeConversation ? (
+              <>
+                <header className="chat-panel__head">
+                  <Avatar name={activeConversation.name} size={40} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p className="card__title">{activeConversation.name}</p>
+                    <p className="chat-panel__status">
+                      <Circle
+                        size={7}
+                        fill={activeConversation.online ? "currentColor" : "none"}
+                        style={{ color: activeConversation.online ? "var(--teal)" : "var(--muted)" }}
+                        aria-hidden="true"
+                      />
+                      {activeConversation.online ? "Online" : "Offline"}
+                      {!connected && <span>· reconnecting…</span>}
+                    </p>
+                  </div>
+                  <Link className="btn btn-ghost btn-sm" to={`/profile/${activeConversation.username}`}>
+                    View profile
+                  </Link>
+                </header>
+
+                <div className="chat-scroll" ref={scrollRef}>
+                  {thread.length === 0 ? (
+                    <p className="muted" style={{ textAlign: "center", fontSize: "0.82rem", marginTop: "1.5rem" }}>
+                      No messages yet. Say hello.
+                    </p>
+                  ) : (
+                    thread.map((message) => (
+                      <div key={message.id} className={`message${message.from === "me" ? " message--me" : ""}`}>
+                        <div className="message__bubble">
+                          {message.text}
+                          <p className="message__time">{message.time}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form className="chat-composer" onSubmit={sendMessage}>
+                  <label htmlFor="message-draft" className="sr-only">Write a message</label>
+                  <input
+                    id="message-draft"
+                    name="message"
+                    type="text"
+                    placeholder="Write a message…"
+                    maxLength={5000}
+                    disabled={!connected}
+                    autoComplete="off"
+                  />
+                  <button className="btn btn-primary btn-icon" type="submit" disabled={!connected} aria-label="Send message">
+                    <Send size={16} aria-hidden="true" />
+                  </button>
+                </form>
+              </>
+            ) : (
+              <div className="chat-empty">
+                <div>
+                  <MessageCircle size={30} aria-hidden="true" className="accent-text" />
+                  <h2 style={{ marginTop: "0.6rem" }}>Your inbox is ready</h2>
+                  <p className="muted" style={{ marginTop: "0.35rem", fontSize: "0.85rem" }}>
+                    Connect with someone in Explore to start a private conversation.
+                  </p>
+                  <Link className="btn btn-primary" to="/explore" style={{ marginTop: "1rem" }}>
+                    Find people
+                  </Link>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

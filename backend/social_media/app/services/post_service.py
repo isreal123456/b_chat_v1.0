@@ -9,19 +9,19 @@ OWN_POST_WEIGHT = 0.05
 
 
 def calculate_engagement(
-    likes: int,
+    ticks: int,
     comments: int,
     shares: int,
     saves: int,
 ) -> float:
 
-    like_score = math.log1p(likes)
+    tick_score = math.log1p(ticks)
     comment_score = math.log1p(comments)
     share_score = math.log1p(shares)
     save_score = math.log1p(saves)
 
     return (
-        like_score * 0.20
+        tick_score * 0.20
         + comment_score * 0.30
         + share_score * 0.30
         + save_score * 0.20

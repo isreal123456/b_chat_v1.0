@@ -1,28 +1,19 @@
-"use client";
-
+import { useState } from "react";
 import Field from "./Field";
 import SectionCard from "./SectionCard";
-import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
+import { useAuth } from "../../providers/AuthProvider";
 
 export default function AccountPanel() {
-  const [email, setEmail] = useState("");
+  const { user } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState({ type: "", message: "" });
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-
-  useEffect(() => {
-    api("/users/me").then((user) => setEmail(user.email))
-      .catch((error) => setLoadError(error.message || "Could not load account details."))
-      .finally(() => setLoading(false));
-  }, []);
 
   const updatePassword = async (event) => {
     event.preventDefault();
-    setStatus("");
+    setStatus({ type: "", message: "" });
     setSaving(true);
     try {
       await api("/users/me/password", {
@@ -31,63 +22,77 @@ export default function AccountPanel() {
       });
       setCurrentPassword("");
       setNewPassword("");
-      setStatus("Password updated.");
+      setStatus({ type: "success", message: "Password updated." });
     } catch (error) {
-      setStatus(error.message || "Could not update password.");
+      setStatus({ type: "error", message: error.message || "Could not update password." });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <SectionCard title="Email & password">
-        {loading && <p role="status" className="text-sm text-neutral-500">Loading account details…</p>}
-        {loadError && <p role="alert" className="mb-3 text-sm text-red-300">{loadError}</p>}
-        <form className="space-y-4" onSubmit={updatePassword}>
-          <Field label="Email address">
-            <input
-              type="email"
-              value={email}
-              readOnly
-              className="w-full bg-neutral-900 text-white rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            />
-          </Field>
+    <div className="settings-stack">
+      <SectionCard title="Account" description="The email you use to sign in to TickMe.">
+        <Field label="Email address" hint="Email changes are coming in a future update.">
+          <input type="email" value={user?.email || ""} readOnly className="input" />
+        </Field>
+      </SectionCard>
+
+      <SectionCard title="Password" description="Use at least 8 characters. Never reuse your TickMe password elsewhere.">
+        <form className="form-stack" onSubmit={updatePassword}>
           <Field label="Current password">
             <input
               type="password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
               placeholder="Current password"
-              className="w-full bg-neutral-900 text-white rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              className="input"
+              autoComplete="current-password"
+              required
             />
           </Field>
-          <Field label="New password" hint="Use at least 8 characters.">
+          <Field label="New password">
             <input
               type="password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
               placeholder="New password"
+              className="input"
+              autoComplete="new-password"
               minLength={8}
-              className="w-full bg-neutral-900 text-white rounded-lg px-4 py-2.5 text-sm border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+              required
             />
           </Field>
-          {status && <p role="status" className="text-sm text-neutral-300">{status}</p>}
-          <button type="submit" disabled={loading || saving || !currentPassword || newPassword.length < 8} className="mt-1 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 text-sm font-semibold rounded-lg px-5 py-2.5 transition-colors">
-            {saving ? "Updating..." : "Update password"}
-          </button>
+
+          {status.message && (
+            <p role={status.type === "error" ? "alert" : "status"} className={`alert alert--${status.type}`}>
+              {status.message}
+            </p>
+          )}
+
+          <div className="form-actions">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={saving || !currentPassword || newPassword.length < 8}
+            >
+              {saving ? "Updating…" : "Update password"}
+            </button>
+          </div>
         </form>
       </SectionCard>
 
-      <SectionCard title="Two-factor authentication" description="Two-factor authentication is not available yet." />
+      <SectionCard title="Two-factor authentication" description="An extra step at sign-in keeps your account safe.">
+        <p className="settings-note">Two-factor authentication is not available yet.</p>
+      </SectionCard>
 
-      <SectionCard title="Danger zone">
-        <div className="flex items-center justify-between">
+      <SectionCard title="Danger zone" description="Destructive actions that affect your whole account.">
+        <div className="settings-row">
           <div>
-            <p className="text-sm text-white">Delete account</p>
-            <p className="text-xs text-neutral-500 mt-0.5">This can't be undone.</p>
+            <p className="settings-row__label">Delete account</p>
+            <p className="settings-row__hint">This can&apos;t be undone.</p>
           </div>
-          <p className="text-sm text-neutral-500">Contact support to delete your account.</p>
+          <p className="settings-row__hint">Contact support to delete your account.</p>
         </div>
       </SectionCard>
     </div>

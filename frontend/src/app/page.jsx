@@ -1,36 +1,88 @@
-import TopNav from "../components/ui/navbar";
-import ProfileSidebarCard from "../components/home/ProfileSidebarCard";
-import PostComposer from "../components/home/PostComposer";
-import PostCard from "../components/home/PostCard";
-import ActivityCard from "../components/home/ActivityCard";
-import { usePosts } from "../hooks/usePosts";
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
 import { Search, X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+
+import AppShell from "../components/layout/AppShell";
+import PostComposer from "../components/feed/PostComposer";
+import PostCard from "../components/feed/PostCard";
+import ActivityCard from "../components/feed/ActivityCard";
+import ProfileMiniCard from "../components/feed/ProfileMiniCard";
+import { usePosts } from "../hooks/usePosts";
+import { api, fetchProject } from "../lib/api";
+import { useAuth } from "../providers/AuthProvider";
+
+function FeedSkeleton() {
+  return (
+    <>
+      {[0, 1, 2].map((item) => (
+        <div key={item} className="card post-card" aria-hidden="true">
+          <div className="row" style={{ gap: "0.7rem" }}>
+            <span className="skeleton" style={{ width: 44, height: 44, borderRadius: 14 }} />
+            <div style={{ flex: 1, display: "grid", gap: "0.35rem" }}>
+              <span className="skeleton" style={{ width: "35%", height: 12 }} />
+              <span className="skeleton" style={{ width: "22%", height: 10 }} />
+            </div>
+          </div>
+          <span className="skeleton" style={{ height: 12, width: "92%" }} />
+          <span className="skeleton" style={{ height: 12, width: "74%" }} />
+          <span className="skeleton" style={{ height: 12, width: "48%" }} />
+        </div>
+      ))}
+    </>
+  );
+}
 
 export default function HomePage() {
-  const { posts, loading, error, addPost } = usePosts();
+  const { user } = useAuth();
+  const { posts, total, loading, loadingMore, error, hasMore, loadMore, addPost } = usePosts();
+  const [searchParams] = useSearchParams();
+  const [attachedProject, setAttachedProject] = useState(null);
   const [activity, setActivity] = useState([]);
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState("");
-  const [currentUserId, setCurrentUserId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const projectParam = searchParams.get("project");
+
   useEffect(() => {
-    api("/users/me")
-      .then((user) => setCurrentUserId(user.id))
-      .catch(() => setCurrentUserId(null));
+    const projectId = Number(projectParam);
+    if (!projectParam || !Number.isInteger(projectId) || projectId <= 0) return undefined;
+
+    let active = true;
+    fetchProject(projectId)
+      .then((project) => {
+        if (active) setAttachedProject(project?.is_owner ? project : null);
+      })
+      .catch(() => {
+        if (active) setAttachedProject(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectParam]);
+
+  useEffect(() => {
+    let active = true;
     api("/friends/requests/received")
       .then((requests) => {
+        if (!active) return;
         setActivityError("");
-        setActivity(requests.map((request) => ({
-        id: request.id,
-        name: request.user?.name || request.user?.username || "Someone",
-        action: "sent you a friend request",
-        })));
+        setActivity(
+          requests.map((request) => ({
+            id: request.id,
+            name: request.user?.name || request.user?.username || "Someone",
+          })),
+        );
       })
-      .catch((requestError) => setActivityError(requestError.message || "Could not load recent activity."))
-      .finally(() => setActivityLoading(false));
+      .catch((requestError) => {
+        if (active) setActivityError(requestError.message || "Could not load recent activity.");
+      })
+      .finally(() => {
+        if (active) setActivityLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const removeActivity = (requestId) => {
@@ -46,82 +98,117 @@ export default function HomePage() {
       )
     : posts;
 
+  const rail = (
+    <div className="rail-stack">
+      <ProfileMiniCard />
+      <ActivityCard
+        activity={activity}
+        loading={activityLoading}
+        loadError={activityError}
+        onRequestHandled={removeActivity}
+      />
+      <aside className="rail-note">
+        <strong>How your feed is ranked</strong>
+        <span>
+          Ticks, comments, and freshness set the pace. Posts from people you follow get a lift, and your
+          skills, project categories, and past engagement tune the rest.
+        </span>
+      </aside>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-neutral-900">
-      <TopNav />
-
-      <div className="home-layout mx-auto grid grid-cols-1 gap-6 px-6 pb-10">
-        <section className="feed-support" aria-labelledby="feed-support-title">
-          <div className="feed-support-heading">
-            <div>
-              <p className="feed-eyebrow">YOUR CORNER</p>
-              <h2 id="feed-support-title">People and updates</h2>
-            </div>
-            <p>Keep your profile close and your connections up to date.</p>
+    <AppShell title="Home" subtitle="Your feed" right={rail}>
+      <div className="page-enter">
+        <header className="page-head">
+          <div>
+            <p className="eyebrow">Home feed</p>
+            <h1 className="page-head__title">What builders are shipping</h1>
+            <p className="page-head__sub">Updates, questions, and wins from your network.</p>
           </div>
-          <div className="feed-support-grid">
-            <ProfileSidebarCard />
-            <ActivityCard activity={activity} loading={activityLoading} loadError={activityError} onRequestHandled={removeActivity} />
-          </div>
-        </section>
+          <span className="badge badge--accent badge--dot">{total} posts</span>
+        </header>
 
-        <main className="home-feed space-y-6">
-          <PostComposer onPostCreated={addPost} />
+        <PostComposer onPostCreated={addPost} project={attachedProject} />
+
+        <div className="feed-toolbar">
           <div className="feed-search">
-            <Search size={18} aria-hidden="true" className="shrink-0 text-neutral-500" />
+            <Search size={16} aria-hidden="true" />
             <label htmlFor="feed-search" className="sr-only">Search posts by text or author</label>
             <input
               id="feed-search"
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search posts or people..."
+              placeholder="Search this feed…"
               autoComplete="off"
             />
             {searchTerm && (
-              <button type="button" onClick={() => setSearchTerm("")} aria-label="Clear feed search" title="Clear search">
-                <X size={17} aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                aria-label="Clear feed search"
+                className="feed-search__clear"
+              >
+                <X size={15} aria-hidden="true" />
               </button>
             )}
           </div>
-          {!loading && !error && normalizedSearch && (
-            <p className="feed-search-count" aria-live="polite">
-              {visiblePosts.length} {visiblePosts.length === 1 ? "post" : "posts"} matching “{searchTerm.trim()}”
-            </p>
-          )}
-          <div className="feed-post-list">
-            {loading && (
-              <div className="feed-state feed-state-loading rounded-2xl border border-neutral-800 bg-neutral-850 p-6 text-sm text-neutral-400 animate-pulse">
-                Loading your feed...
-              </div>
-            )}
-            {error && (
-              <div className="feed-state feed-state-error rounded-2xl border border-red-900/60 bg-red-950/30 p-6">
-                <p className="text-sm font-semibold text-red-200">We could not load your feed.</p>
-                <p className="mt-1 text-sm text-red-300/70">
-                  {error.message || "Check that you are signed in and the API is running."}
-                </p>
-              </div>
-            )}
-            {!loading && !error && posts.length === 0 && (
-              <div className="feed-state feed-state-empty rounded-2xl border border-dashed border-neutral-700 bg-neutral-800/50 p-8 text-center">
-                <p className="text-white font-semibold">Your feed is quiet</p>
-                <p className="mt-1 text-sm text-neutral-400">Share something or follow people to get the conversation started.</p>
-              </div>
-            )}
-            {!loading && !error && posts.length > 0 && visiblePosts.length === 0 && (
-              <div className="feed-state feed-state-empty rounded-2xl border border-dashed border-neutral-700 bg-neutral-800/50 p-8 text-center">
-                <p className="text-white font-semibold">No matching posts</p>
-                <p className="mt-1 text-sm text-neutral-400">Try another name or phrase.</p>
-              </div>
-            )}
-            {!loading && !error && visiblePosts.map((post) => (
-              <PostCard key={post.id} post={post} currentUserId={currentUserId} />
-            ))}
-          </div>
-        </main>
+        </div>
 
+        {!loading && !error && normalizedSearch && (
+          <p className="feed-count" aria-live="polite">
+            {visiblePosts.length} {visiblePosts.length === 1 ? "post" : "posts"} matching “{searchTerm.trim()}”
+          </p>
+        )}
+
+        <div className="post-list">
+          {loading && <FeedSkeleton />}
+
+          {error && (
+            <div className="alert alert--error" role="alert">
+              <div>
+                <strong>We couldn’t load your feed.</strong>
+                <p style={{ marginTop: 2 }}>{error.message || "Check that the API is running and try again."}</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && !error && posts.length === 0 && (
+            <div className="empty-state">
+              <span className="empty-state__icon" aria-hidden="true">✓</span>
+              <h3>Your feed is quiet</h3>
+              <p>Share your first update or connect with people in Explore to get the conversation started.</p>
+            </div>
+          )}
+
+          {!loading && !error && posts.length > 0 && visiblePosts.length === 0 && (
+            <div className="empty-state">
+              <h3>No matching posts</h3>
+              <p>Try another word, name, or @handle.</p>
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            visiblePosts.map((post) => (
+              <PostCard key={post.feed_id || post.id} post={post} currentUserId={user?.id} />
+            ))}
+
+          {!loading && !error && !normalizedSearch && hasMore && (
+            <div className="feed-more">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={loadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "Loading more…" : `Load more posts (${total - posts.length})`}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

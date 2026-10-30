@@ -41,4 +41,9 @@ async def get_current_user(
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    if user.account_status != "active":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is suspended. Contact the TickMe team if you believe this is a mistake.",
+        )
     return user

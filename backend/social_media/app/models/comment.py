@@ -1,4 +1,6 @@
-from sqlalchemy import String, ForeignKey
+from datetime import datetime
+
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -28,3 +30,16 @@ class Comment(Base):
         nullable=False,
         index=True
     )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, nullable=False, index=True
+    )
+
+    moderation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="published", index=True
+    )
+    removed_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    removal_reason: Mapped[str] = mapped_column(String(500), nullable=False, default="")

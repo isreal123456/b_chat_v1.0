@@ -8,7 +8,8 @@ class UserPreferences(Base):
     __tablename__ = "user_preferences"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
-    likes: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    ticks: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    allow_ticks: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     comments: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     follows: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     messages: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

@@ -1,4 +1,4 @@
-from sqlalchemy import String, ForeignKey, DateTime
+from sqlalchemy import String, ForeignKey, DateTime, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from datetime import datetime
 from app.database import Base
@@ -6,6 +6,9 @@ from app.database import Base
 
 class Message(Base):
     __tablename__ = "messages"
+    __table_args__ = (
+        Index("ix_messages_receiver_unread", "receiver_id", "is_read"),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True,

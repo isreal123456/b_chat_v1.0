@@ -5,8 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
 from app.dependencies import get_current_user
+from app.models.block import Block
 from app.models.user import User
 from app.models.friend_request import FriendRequest
+from app.routers.blocks import is_blocked_between
 from app.services.notification_service import create_notification
 
 
@@ -44,7 +46,10 @@ async def send_friend_request(
         )
 
     result = await db.execute(
-        select(User).where(User.id == user_id)
+        select(User).where(
+            User.id == user_id,
+            User.account_status == "active",
+        )
     )
 
     receiver = result.scalar_one_or_none()
@@ -53,6 +58,12 @@ async def send_friend_request(
         raise HTTPException(
             status_code=404,
             detail="User not found"
+        )
+
+    if await is_blocked_between(db, current_user.id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot connect with this user"
         )
 
     result = await db.execute(
@@ -200,6 +211,12 @@ async def accept_friend_request(
             detail="Friend request is no longer pending"
         )
 
+    if await is_blocked_between(db, current_user.id, friend_request.sender_id):
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot connect with this user"
+        )
+
     friend_request.status = "accepted"
     await create_notification(
         db, recipient_id=friend_request.sender_id, sender_id=current_user.id,
@@ -329,10 +346,26 @@ async def get_my_friends(
         return []
 
     result = await db.execute(
-        select(User).where(User.id.in_(friend_ids))
+        select(User).where(
+            User.id.in_(friend_ids),
+            User.account_status == "active",
+        )
     )
 
     friends = result.scalars().all()
+
+    blocked_result = await db.execute(
+        select(Block.blocker_id, Block.blocked_id).where(
+            or_(
+                Block.blocker_id == current_user.id,
+                Block.blocked_id == current_user.id,
+            )
+        )
+    )
+    blocked_ids = {
+        blocked_id if blocker_id == current_user.id else blocker_id
+        for blocker_id, blocked_id in blocked_result.all()
+    }
 
     return [
         {
@@ -342,6 +375,7 @@ async def get_my_friends(
             "avatar_url": f"/users/{friend.id}/avatar",
         }
         for friend in friends
+        if friend.id not in blocked_ids
     ]
 
 
@@ -392,7 +426,10 @@ async def get_user_friends(
         return []
 
     result = await db.execute(
-        select(User).where(User.id.in_(friend_ids))
+        select(User).where(
+            User.id.in_(friend_ids),
+            User.account_status == "active",
+        )
     )
 
     friends = result.scalars().all()

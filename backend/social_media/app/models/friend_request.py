@@ -10,12 +10,14 @@ class FriendRequest(Base):
 
     sender_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True,
     )
 
     receiver_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False
+        nullable=False,
+        index=True,
     )
 
     status: Mapped[str] = mapped_column(

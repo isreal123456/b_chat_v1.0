@@ -3,7 +3,8 @@ from pydantic import BaseModel, ConfigDict
 
 class PreferencesRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-    likes: bool = True
+    ticks: bool = True
+    allow_ticks: bool = True
     comments: bool = True
     follows: bool = True
     messages: bool = True

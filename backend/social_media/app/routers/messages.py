@@ -10,6 +10,7 @@ from app.models.message import Message
 from app.models.friend_request import FriendRequest
 from app.services.notification_service import create_notification
 from app.models.user import User
+from app.routers.blocks import is_blocked_between
 
 
 router = APIRouter(prefix="/messages", tags=["messages"])
@@ -18,20 +19,32 @@ router = APIRouter(prefix="/messages", tags=["messages"])
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: dict[int, WebSocket] = {}
+        self.active_connections: dict[int, set[WebSocket]] = {}
 
     async def connect(self, user_id: int, websocket: WebSocket):
         await websocket.accept()
-        self.active_connections[user_id] = websocket
+        self.active_connections.setdefault(user_id, set()).add(websocket)
 
-    def disconnect(self, user_id: int):
-        self.active_connections.pop(user_id, None)
+    def disconnect(self, user_id: int, websocket: WebSocket | None = None):
+        sockets = self.active_connections.get(user_id)
+        if sockets is None:
+            return
+        if websocket is None:
+            self.active_connections.pop(user_id, None)
+            return
+        sockets.discard(websocket)
+        if not sockets:
+            self.active_connections.pop(user_id, None)
+
+    def is_online(self, user_id: int) -> bool:
+        return bool(self.active_connections.get(user_id))
 
     async def send_message(self, user_id: int, message: dict):
-        websocket = self.active_connections.get(user_id)
-
-        if websocket:
-            await websocket.send_json(message)
+        for websocket in list(self.active_connections.get(user_id, ())):
+            try:
+                await websocket.send_json(message)
+            except Exception:
+                self.disconnect(user_id, websocket)
 
 
 manager = ConnectionManager()
@@ -65,8 +78,11 @@ async def websocket_endpoint(
                 await websocket.send_json({"error": "Enter a receiver and a message of 1 to 5000 characters"})
                 continue
             receiver = await db.get(User, receiver_id)
-            if receiver is None:
+            if receiver is None or receiver.account_status != "active":
                 await websocket.send_json({"error": "Recipient not found"})
+                continue
+            if await is_blocked_between(db, current_user_id, receiver_id):
+                await websocket.send_json({"error": "You cannot message this user"})
                 continue
             if receiver_id != current_user_id:
                 friendship = await db.execute(select(FriendRequest.id).where(
@@ -117,7 +133,7 @@ async def websocket_endpoint(
     except WebSocketDisconnect:
         pass
     finally:
-        manager.disconnect(current_user_id)
+        manager.disconnect(current_user_id, websocket)
 
 
 async def authenticate_websocket_user(
@@ -137,7 +153,10 @@ async def authenticate_websocket_user(
         return None
 
     result = await db.execute(select(User).where(User.email == subject))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user is None or user.account_status != "active":
+        return None
+    return user
 
 
 

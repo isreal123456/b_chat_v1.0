@@ -1,32 +1,20 @@
 export default function Toggle({ checked, onChange, label, hint, disabled = false }) {
   return (
-    <div className="flex items-center justify-between py-3">
+    <div className="settings-row">
       <div>
-        <p className="text-sm text-white">{label}</p>
-
-        {hint && (
-          <p className="text-xs text-neutral-500 mt-0.5">
-            {hint}
-          </p>
-        )}
+        <p className="settings-row__label">{label}</p>
+        {hint && <p className="settings-row__hint">{hint}</p>}
       </div>
-
       <button
         type="button"
-        disabled={disabled}
         role="switch"
         aria-checked={checked}
         aria-label={label}
+        disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ml-4 ${
-          checked ? "bg-yellow-400" : "bg-neutral-700"
-        }`}
+        className="toggle"
       >
-        <span
-          className={`absolute top-0.5 left-0 w-5 h-5 bg-white rounded-full transition-transform ${
-            checked ? "translate-x-5" : "translate-x-0.5"
-          }`}
-        />
+        <span className="toggle__thumb" />
       </button>
     </div>
   );

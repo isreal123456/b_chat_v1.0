@@ -13,6 +13,28 @@ class Settings(BaseSettings):
     secret_key: str = "changfjkhjvgfxhgjgjhon"
     message_encryption_key: str = ""
     access_token_expire_minutes: int = 30
+    # Promote this existing account to super admin when no super admin exists.
+    bootstrap_admin_email: str = ""
+
+    frontend_url: str = "http://localhost:5173"
+    verification_token_expire_minutes: int = 60 * 24
+    password_reset_token_expire_minutes: int = 30
+
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from: str = "TickMe <no-reply@tickme.dev>"
+    smtp_use_tls: bool = True
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(self.smtp_host.strip())
+
+    @property
+    def expose_dev_tokens(self) -> bool:
+        # Without SMTP there is no other way to complete verification or reset.
+        return self.debug or not self.smtp_configured
 
     @field_validator("debug", mode="before")
     @classmethod

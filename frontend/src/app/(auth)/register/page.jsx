@@ -1,193 +1,212 @@
-"use client";
-
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
-import { api } from "../../../lib/api";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { AtSign, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
 
-export default function SignupPage() {
+import AuthLayout from "../../../components/auth/AuthLayout";
+import { useAuth } from "../../../providers/AuthProvider";
+
+const points = [
+  "Create a portfolio-style professional profile",
+  "Publish projects with screenshots and stack details",
+  "Get matched with developers and designers for Build Together",
+];
+
+export default function RegisterPage() {
+  const { register, login, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
     username: "",
     email: "",
     password: "",
+    confirm: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  if (isAuthenticated) {
+    return <Navigate to={user?.onboarded ? "/home" : "/onboarding"} replace />;
+  }
+
+  const handleChange = (event) => {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
 
-    if (!form.name || !form.username || !form.email || !form.password) {
-      setError("Please fill in all fields.");
+    const name = form.name.trim();
+    const username = form.username.trim();
+    const email = form.email.trim();
+
+    if (!name || !username || !email || !form.password) {
+      setError("Fill in every field to create your account.");
       return;
     }
-
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(username)) {
+      setError("Usernames use 3–30 letters, numbers, or underscores.");
+      return;
+    }
     if (form.password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError("Passwords need at least 8 characters.");
+      return;
+    }
+    if (form.password !== form.confirm) {
+      setError("Passwords don’t match yet.");
+      return;
+    }
+    if (!accepted) {
+      setError("Accept the Terms of Service and Privacy Policy to create your account.");
       return;
     }
 
     setLoading(true);
     try {
-      await api("/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: form.username,
-          name: form.name,
-          email: form.email,
-          password: form.password,
-        }),
-      });
-
-      window.location.href = "/login";
-    } catch (err) {
-      setError(err.message || "Something went wrong. Try again.");
+      await register({ username, name, email, password: form.password, terms_accepted: true });
+      try {
+        const me = await login(email, form.password);
+        navigate(me?.onboarded ? "/home" : "/onboarding", { replace: true });
+      } catch {
+        navigate("/login", {
+          replace: true,
+          state: { notice: "Account created. Log in to continue." },
+        });
+      }
+    } catch (requestError) {
+      setError(requestError.message || "Could not create your account. Try a different email or username.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-neutral-900 px-4 py-10">
-      <div className="w-full max-w-md bg-neutral-800 rounded-2xl shadow-xl p-8 border border-neutral-700">
-        {/* Logo / Brand */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-yellow-400 flex items-center justify-center mb-3">
-            <span className="text-neutral-900 font-bold text-xl">B</span>
+    <AuthLayout
+      title="Create your account"
+      subtitle="Your next collaborator is already here."
+      points={points}
+      footer={
+        <>
+          Already on TickMe? <Link to="/login">Log in</Link>
+        </>
+      }
+    >
+      {error && <div className="alert alert--error" role="alert" style={{ marginBottom: "1rem" }}>{error}</div>}
+
+      <form className="auth__form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label className="label" htmlFor="register-name">Full name</label>
+          <div className="input-affix">
+            <User size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type="text"
+              id="register-name"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="Ada Lovelace"
+              autoComplete="name"
+            />
           </div>
-          <h1 className="text-white text-2xl font-semibold">Create account</h1>
-          <p className="text-neutral-400 text-sm mt-1">
-            Join and start sharing your thoughts
-          </p>
         </div>
 
-        {error && (
-          <div className="mb-4 text-sm text-red-400 bg-red-400/10 border border-red-400/30 rounded-lg px-3 py-2">
-            {error}
+        <div className="field">
+          <label className="label" htmlFor="register-username">Username</label>
+          <div className="input-affix">
+            <AtSign size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type="text"
+              id="register-username"
+              name="username"
+              value={form.username}
+              onChange={handleChange}
+              placeholder="ada"
+              autoComplete="username"
+            />
           </div>
-        )}
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Full name */}
-          <div>
-            <label htmlFor="register-name" className="text-sm text-neutral-300 mb-1 block">
-              Full name
-            </label>
-            <div className="relative">
-              <User
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-              />
-              <input
-                type="text"
-                name="name"
-                id="register-name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Elviz Dizzouza"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-10 pr-4 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-            </div>
+        <div className="field">
+          <label className="label" htmlFor="register-email">Email</label>
+          <div className="input-affix">
+            <Mail size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type="email"
+              id="register-email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
           </div>
+        </div>
 
-          {/* Username */}
-          <div>
-            <label htmlFor="register-username" className="text-sm text-neutral-300 mb-1 block">
-              Username
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500">
-                @
-              </span>
-              <input
-                type="text"
-                name="username"
-                id="register-username"
-                value={form.username}
-                onChange={handleChange}
-                placeholder="elvizoodem"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-8 pr-4 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-            </div>
+        <div className="field">
+          <label className="label" htmlFor="register-password">Password</label>
+          <div className="input-affix input-affix--action">
+            <Lock size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type={showPassword ? "text" : "password"}
+              id="register-password"
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="At least 8 characters"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="input-affix__action"
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
+        </div>
 
-          {/* Email */}
-          <div>
-            <label htmlFor="register-email" className="text-sm text-neutral-300 mb-1 block">
-              Email
-            </label>
-            <div className="relative">
-              <Mail
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-              />
-              <input
-                type="email"
-                name="email"
-                id="register-email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="you@example.com"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-10 pr-4 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-            </div>
+        <div className="field">
+          <label className="label" htmlFor="register-confirm">Confirm password</label>
+          <div className="input-affix">
+            <Lock size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type={showPassword ? "text" : "password"}
+              id="register-confirm"
+              name="confirm"
+              value={form.confirm}
+              onChange={handleChange}
+              placeholder="Repeat your password"
+              autoComplete="new-password"
+            />
           </div>
+        </div>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="register-password" className="text-sm text-neutral-300 mb-1 block">
-              Password
-            </label>
-            <div className="relative">
-              <Lock
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-              />
-              <input
-                type={showPassword ? "text" : "password"}
-                name="password"
-                id="register-password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="At least 8 characters"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-10 pr-10 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
+        <div className="auth__consent">
+          <input
+            type="checkbox"
+            id="register-terms"
+            checked={accepted}
+            onChange={(event) => setAccepted(event.target.checked)}
+          />
+          <label htmlFor="register-terms">
+            I agree to the{" "}
+            <Link to="/terms" target="_blank" rel="noreferrer">Terms of Service</Link> and{" "}
+            <Link to="/privacy" target="_blank" rel="noreferrer">Privacy Policy</Link>.
+          </label>
+        </div>
 
-          <p className="text-xs text-neutral-500">Create an account with a valid email and a password of at least 8 characters.</p>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 font-semibold rounded-lg py-2.5 transition-colors"
-          >
-            {loading ? "Creating account..." : "Sign Up"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-neutral-400 mt-6">
-          Already have an account?{" "}
-          <a href="/login" className="text-yellow-400 hover:underline">
-            Log in
-          </a>
-        </p>
-      </div>
-    </div>
+        <button className="btn btn-primary btn-lg" type="submit" disabled={loading}>
+          {loading ? <><span className="spinner" aria-hidden="true" /> Creating account…</> : "Create account"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

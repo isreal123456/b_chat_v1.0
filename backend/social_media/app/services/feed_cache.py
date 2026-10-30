@@ -10,6 +10,12 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 _client = None
 
+_FEED_KEY = "feed:all:v4:user:{user_id}"
+
+
+def feed_cache_key(user_id: int) -> str:
+    return _FEED_KEY.format(user_id=user_id)
+
 
 def _get_client():
     global _client
@@ -62,7 +68,7 @@ async def invalidate_feed_cache(user_id: int) -> None:
     if client is None:
         return
     try:
-        await client.delete(f"feed:all:v2:user:{user_id}")
+        await client.delete(feed_cache_key(user_id))
     except Exception:
         logger.warning("Feed cache invalidation failed", exc_info=True)
 

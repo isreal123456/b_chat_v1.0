@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from jose import JWTError, jwt
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -27,6 +27,37 @@ async def get_notifications(
         .order_by(Notification.created_at.desc())
     )
     return result.scalars().all()
+
+
+@router.get("/unread-count")
+async def get_unread_count(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    count = await db.scalar(
+        select(func.count(Notification.id)).where(
+            Notification.recipient_id == current_user.id,
+            Notification.is_read.is_(False),
+        )
+    )
+    return {"count": int(count or 0)}
+
+
+@router.patch("/read-all")
+async def mark_all_notifications_read(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        update(Notification)
+        .where(
+            Notification.recipient_id == current_user.id,
+            Notification.is_read.is_(False),
+        )
+        .values(is_read=True)
+    )
+    await db.commit()
+    return {"updated": int(result.rowcount or 0)}
 
 
 @router.patch("/{notification_id}/read", response_model=NotificationRead)
@@ -75,7 +106,9 @@ async def websocket_endpoint(
             await websocket.receive_json()
 
     except WebSocketDisconnect:
-        manager.disconnect(current_user.id)
+        pass
+    finally:
+        manager.disconnect(current_user.id, websocket)
 
 
 async def authenticate_websocket_user(
@@ -95,4 +128,7 @@ async def authenticate_websocket_user(
         return None
 
     result = await db.execute(select(User).where(User.email == subject))
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if user is None or user.account_status != "active":
+        return None
+    return user

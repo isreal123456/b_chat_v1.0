@@ -1,139 +1,120 @@
-"use client";
-
 import { useState } from "react";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { api } from "../../../lib/api";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+
+import AuthLayout from "../../../components/auth/AuthLayout";
+import { useAuth } from "../../../providers/AuthProvider";
+
+const points = [
+  "Professional profiles with skills, stack, and links",
+  "Project showcase with repo and demo links",
+  "Build Together requests for finding collaborators",
+];
 
 export default function LoginPage() {
+  const { login, isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const notice = location.state?.notice;
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  if (isAuthenticated) {
+    return <Navigate to={user?.onboarded ? "/home" : "/onboarding"} replace />;
+  }
+
+  const handleChange = (event) => {
+    setForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError("");
 
-    if (!form.email || !form.password) {
-      setError("Please fill in both fields.");
+    if (!form.email.trim() || !form.password) {
+      setError("Enter your email and password to continue.");
       return;
     }
 
     setLoading(true);
     try {
-      const body = new URLSearchParams({
-        username: form.email,
-        password: form.password,
-      });
-      const data = await api("/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body,
-      });
-      localStorage.setItem("access_token", data.access_token);
-      window.location.href = "/home";
-    } catch (err) {
-      setError(err.message || "Something went wrong. Try again.");
+      const me = await login(form.email.trim(), form.password);
+      navigate(me?.onboarded ? "/home" : "/onboarding", { replace: true });
+    } catch (requestError) {
+      setError(requestError.message || "Could not sign you in. Check your details and try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-neutral-900 px-4">
-      <div className="w-full max-w-md bg-neutral-800 rounded-2xl shadow-xl p-8 border border-neutral-700">
-        {/* Logo / Brand */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-full bg-yellow-400 flex items-center justify-center mb-3">
-            <span className="text-neutral-900 font-bold text-xl">B</span>
+    <AuthLayout
+      title="Welcome back"
+      subtitle="Log in to pick up where you left off."
+      points={points}
+      footer={
+        <>
+          New to TickMe? <Link to="/register">Create an account</Link>
+        </>
+      }
+    >
+      {notice && <div className="alert alert--success" role="status" style={{ marginBottom: "1rem" }}>{notice}</div>}
+      {error && <div className="alert alert--error" role="alert" style={{ marginBottom: "1rem" }}>{error}</div>}
+
+      <form className="auth__form" onSubmit={handleSubmit}>
+        <div className="field">
+          <label className="label" htmlFor="login-email">Email</label>
+          <div className="input-affix">
+            <Mail size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type="email"
+              id="login-email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@example.com"
+              autoComplete="email"
+            />
           </div>
-          <h1 className="text-white text-2xl font-semibold">Welcome back</h1>
-          <p className="text-neutral-400 text-sm mt-1">
-            Log in to continue to your feed
-          </p>
         </div>
 
-        {error && (
-          <div className="mb-4 text-sm text-red-400 bg-red-400/10 border border-red-400/30 rounded-lg px-3 py-2">
-            {error}
+        <div className="field">
+          <label className="label" htmlFor="login-password">Password</label>
+          <div className="input-affix input-affix--action">
+            <Lock size={16} aria-hidden="true" />
+            <input
+              className="input"
+              type={showPassword ? "text" : "password"}
+              id="login-password"
+              name="password"
+              value={form.password}
+              onChange={handleChange}
+              placeholder="••••••••"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((visible) => !visible)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="input-affix__action"
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
-        )}
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
-          <div>
-            <label htmlFor="login-email" className="text-sm text-neutral-300 mb-1 block">
-              Email
-            </label>
-            <div className="relative">
-              <Mail
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-              />
-              <input
-                type="email"
-                id="login-email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="you@example.com"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-10 pr-4 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-            </div>
-          </div>
+        <div className="auth__row">
+          <Link to="/forgot-password">Forgot password?</Link>
+          <span>Use the email linked to your account.</span>
+        </div>
 
-          {/* Password */}
-          <div>
-            <label htmlFor="login-password" className="text-sm text-neutral-300 mb-1 block">
-              Password
-            </label>
-            <div className="relative">
-              <Lock
-                size={18}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"
-              />
-              <input
-                type={showPassword ? "text" : "password"}
-                id="login-password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full bg-neutral-900 text-white placeholder-neutral-500 rounded-lg pl-10 pr-10 py-2.5 border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              />
-              <button
-                type="button"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <p className="text-xs text-neutral-500">Use the email address linked to your account.</p>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-yellow-400 hover:bg-yellow-300 disabled:opacity-60 text-neutral-900 font-semibold rounded-lg py-2.5 transition-colors"
-          >
-            {loading ? "Logging in..." : "Log In"}
-          </button>
-        </form>
-
-        <p className="text-center text-sm text-neutral-400 mt-6">
-          Don't have an account?{" "}
-          <a href="/register" className="text-yellow-400 hover:underline">
-            Sign up
-          </a>
-        </p>
-      </div>
-    </div>
+        <button className="btn btn-primary btn-lg" type="submit" disabled={loading}>
+          {loading ? <><span className="spinner" aria-hidden="true" /> Signing in…</> : "Log in"}
+        </button>
+      </form>
+    </AuthLayout>
   );
 }

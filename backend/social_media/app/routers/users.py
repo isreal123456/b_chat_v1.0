@@ -1,15 +1,20 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+import json
 
+from app.core.permissions import is_admin_role
 from app.database.database import get_db
 from app.dependencies import get_current_user
+from app.models.block import Block
 from app.models.user import User
 from app.models.profile_image import ProfileImage
 from app.models.user_preferences import UserPreferences
 from app.schemas.preferences import PreferencesRead, PreferencesUpdate
 from app.schemas.user import PasswordUpdate, UserUpdate
 from app.core.security import hash_password, verify_password
+from app.services.follow_service import get_follow_counts, get_followed_ids, is_following
+from app.services.user_service import serialize_public_user, serialize_user
 from sqlalchemy.exc import IntegrityError
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -38,38 +43,57 @@ async def update_preferences(data: PreferencesUpdate, current_user: User = Depen
 	return prefs
 
 
-def serialize_user(user: User) -> dict:
-	return {
-		"id": user.id,
-		"username": user.username,
-		"email": user.email,
-		"name": user.display_name or user.username,
-		"bio": user.bio or "",
-		"avatar_url": f"/users/{user.id}/avatar",
-	}
-
-
 @router.get("/search")
 async def search_users(
 	query: str = Query(default="", min_length=0, max_length=50),
+	limit: int = Query(default=20, ge=1, le=50),
 	current_user: User = Depends(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ):
-	statement = select(User).where(User.id != current_user.id)
+	statement = select(User).where(
+		User.id != current_user.id,
+		User.account_status == "active",
+		~exists(
+			select(Block.id).where(
+				or_(
+					(Block.blocker_id == current_user.id) & (Block.blocked_id == User.id),
+					(Block.blocker_id == User.id) & (Block.blocked_id == current_user.id),
+				)
+			)
+		),
+	)
 	if query.strip():
 		pattern = f"%{query.strip()}%"
 		statement = statement.where(
-			or_(User.username.ilike(pattern), User.display_name.ilike(pattern))
+			or_(
+				User.username.ilike(pattern),
+				User.display_name.ilike(pattern),
+				User.headline.ilike(pattern),
+				User.bio.ilike(pattern),
+				User.skills.ilike(pattern),
+			)
 		)
 
-	result = await db.execute(statement.order_by(User.username).limit(20))
-	return [{key: value for key, value in serialize_user(user).items() if key != "email"}
-		for user in result.scalars().all()]
+	result = await db.execute(statement.order_by(User.username).limit(limit))
+	users = result.scalars().all()
+	followed = await get_followed_ids(db, current_user.id, [user.id for user in users])
+	return [
+		{**serialize_public_user(user), "is_following": user.id in followed}
+		for user in users
+	]
 
 
 @router.get("/me")
-async def get_me(current_user: User = Depends(get_current_user)):
-	return serialize_user(current_user)
+async def get_me(
+	current_user: User = Depends(get_current_user),
+	db: AsyncSession = Depends(get_db),
+):
+	follower_count, following_count = await get_follow_counts(db, current_user.id)
+	return {
+		**serialize_user(current_user),
+		"follower_count": follower_count,
+		"following_count": following_count,
+	}
 
 
 @router.patch("/me")
@@ -78,22 +102,53 @@ async def update_me(
 	current_user: User = Depends(get_current_user),
 	db: AsyncSession = Depends(get_db),
 ):
-	existing = await db.execute(
-		select(User).where(User.username == user_data.username, User.id != current_user.id)
-	)
-	if existing.scalar_one_or_none() is not None:
-		raise HTTPException(status_code=409, detail="Username already registered")
+	updates = user_data.model_dump(exclude_unset=True)
 
-	current_user.username = user_data.username.strip()
-	current_user.display_name = user_data.name.strip()
-	current_user.bio = user_data.bio.strip()
+	if "username" in updates:
+		existing = await db.execute(
+			select(User).where(User.username == updates["username"], User.id != current_user.id)
+		)
+		if existing.scalar_one_or_none() is not None:
+			raise HTTPException(status_code=409, detail="Username already registered")
+		current_user.username = updates["username"]
+
+	if "name" in updates:
+		current_user.display_name = updates["name"]
+	if "bio" in updates:
+		current_user.bio = updates["bio"]
+	if "headline" in updates:
+		current_user.headline = updates["headline"]
+	if "category" in updates:
+		current_user.category = updates["category"]
+	if "skills" in updates:
+		current_user.skills = json.dumps(updates["skills"])
+	if "github_url" in updates:
+		current_user.github_url = updates["github_url"]
+	if "portfolio_url" in updates:
+		current_user.portfolio_url = updates["portfolio_url"]
+	if "linkedin_url" in updates:
+		current_user.linkedin_url = updates["linkedin_url"]
+	if "location" in updates:
+		current_user.location = updates["location"]
+	if "available_for_work" in updates:
+		current_user.available_for_work = updates["available_for_work"]
+	if "onboarded" in updates:
+		current_user.onboarded = updates["onboarded"]
+
 	try:
 		await db.commit()
 	except IntegrityError:
 		await db.rollback()
 		raise HTTPException(status_code=409, detail="Username already registered")
 	await db.refresh(current_user)
-	return serialize_user(current_user)
+	follower_count, following_count = await get_follow_counts(db, current_user.id)
+	return {
+		**serialize_user(current_user),
+		"follower_count": follower_count,
+		"following_count": following_count,
+	}
+
+
 @router.patch("/me/password", status_code=204)
 async def update_password(
 	password_data: PasswordUpdate,
@@ -174,4 +229,12 @@ async def get_user_by_username(
 	user = result.scalar_one_or_none()
 	if user is None:
 		raise HTTPException(status_code=404, detail="User not found")
-	return {key: value for key, value in serialize_user(user).items() if key != "email"}
+	if user.account_status != "active" and not is_admin_role(current_user.role):
+		raise HTTPException(status_code=404, detail="User not found")
+	follower_count, following_count = await get_follow_counts(db, user.id)
+	following = await is_following(db, current_user.id, user.id)
+	return {
+		**serialize_public_user(user, is_following=following),
+		"follower_count": follower_count,
+		"following_count": following_count,
+	}
