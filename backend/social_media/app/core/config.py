@@ -61,6 +61,7 @@ class Settings(BaseSettings):
         query = dict(parse_qsl(parsed.query, keep_blank_values=True))
         if query.pop("sslmode", None) == "require":
             query["ssl"] = "require"
+        query.pop("channel_binding", None)
 
         return urlunsplit((
             "postgresql+asyncpg",
