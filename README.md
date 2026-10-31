@@ -78,8 +78,9 @@ npm install
 npm run dev
 ```
 
-The app runs at <http://127.0.0.1:5173>. Point it at another API with
-`VITE_API_URL` in `frontend/.env`.
+The app runs at <http://127.0.0.1:5173> and uses the deployed API at
+<https://tickme-api.onrender.com> by default. To use a local or alternate API,
+set `VITE_API_URL` in `frontend/.env`.
 
 ## Tests and checks
 

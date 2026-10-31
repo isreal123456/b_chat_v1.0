@@ -2,7 +2,7 @@ const defaultHeaders = {
   'Content-Type': 'application/json',
 }
 
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://tickme-api.onrender.com').replace(/\/$/, '')
 
 export function getMediaUrl(path) {
   if (!path) return ''
